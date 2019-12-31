@@ -15,7 +15,7 @@
 import physicalgraph.zigbee.zcl.DataType
 
 metadata {
-	definition (name: "ZigBee Fan Controller", namespace: "stussy2112", author: "Sean Williams", ocfDeviceType: "oic.d.fan", runLocally: true, executeCommandsLocally: true, genericHandler: "Zigbee") {
+	definition (name: "ZigBee-fan-controller", namespace: "stussy2112", author: "Sean Williams", ocfDeviceType: "oic.d.fan", runLocally: true, executeCommandsLocally: true, genericHandler: "Zigbee") {
 		capability "Actuator"
 		capability "Configuration"
 		capability "Fan Speed"
