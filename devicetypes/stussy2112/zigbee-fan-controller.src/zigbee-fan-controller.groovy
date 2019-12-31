@@ -25,13 +25,13 @@ metadata {
 		capability "Switch Level"
 		capability "Health Check"
 
-    command "fanOff"
-    command "fanOn"
-    command "setFanSpeed"
-    command "raiseFanSpeed"
+		command "fanOff"
+		command "fanOn"
+		command "setFanSpeed"
+		command "raiseFanSpeed"
 		command "lowerFanSpeed"
-    command "lightOn"
-    command "lightOff"
+		command "lightOn"
+		command "lightOff"
 
 	  fingerprint profileId: "0104", inClusters: "0000, 0003, 0004, 0005, 0006, 0008, 0202", outClusters: "0003, 0019", manufacturer: "King Of Fans, Inc.", model: "HDC52EastwindFan", deviceJoinName: "Zigbee Fan Controller"
 	}
@@ -111,6 +111,19 @@ def configure() {
     ]
 
     return cmds
+}
+
+def installed() {
+	initialize()
+	if ((device.currentState("level")?.value == null) || (device.currentState("level")?.value == 0)) {
+        sendEvent(name: "level", value: 100)
+    }
+}
+
+def initialize() {
+	log.info "Initializing..."
+    createFanChildren()
+    response(refresh() + configure())
 }
 
 // Parse incoming device messages to generate events
@@ -219,9 +232,21 @@ def refresh() {
     return zigbee.onOffRefresh() + zigbee.levelRefresh() + zigbee.readAttribute(FAN_CLUSTER_ID, FAN_ATTR_ID)
 }
 
-def installed() {
-	if ((device.currentState("level")?.value == null) || (device.currentState("level")?.value == 0)) {
-        sendEvent(name: "level", value: 100)
+private addChildDevice() {
+}
+
+private createFanChildren() {
+	for(i in 1..4) {
+    	def networkId = "${device.deviceNetworkId}.0${i}"
+    	def childFanSwitch = getChildDevices()?.find {
+        	it.device.deviceNetworkId == networkId
+        }
+        if (!childDevice) {
+           	log.info "Creating child fan mode ${childDevice}"
+        	def data = [speedVal:"0${i}", "parent":device.id]
+        	def properties = [isComponent: true, componentName: "fanMode${i}", componentLabel: "${getFanName()["0${i}"]}", completedSetup: true, label: "${device.displayName} ${getFanName()["0${i}"]}", data: data]
+        	childDevice = addChildDevice("Zigbee Fan Controller - Fan Speed Child Device", networkId, null, properties)
+        }
     }
 }
 
