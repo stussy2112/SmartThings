@@ -232,9 +232,6 @@ def refresh() {
     return zigbee.onOffRefresh() + zigbee.levelRefresh() + zigbee.readAttribute(FAN_CLUSTER_ID, FAN_ATTR_ID)
 }
 
-private addChildDevice() {
-}
-
 private createFanChildren() {
 	for(i in 1..4) {
     	def networkId = "${device.deviceNetworkId}.0${i}"
