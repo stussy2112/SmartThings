@@ -1,32 +1,47 @@
 metadata {
-	definition (name: "Zigbee Fan Controller - Fan Speed Child Device", namespace: "stussy2112", author: "Sean Williams", ocfDeviceType: "oic.d.switch", runLocally: true, executeCommandsLocally: true, genericHandler: "Zigbee") {
+	definition (name: "Zigbee Fan Controller - Fan Speed Child Device", namespace: "stussy2112", author: "Sean Williams", ocfDeviceType: "oic.d.switch") {
+		capability "Actuator"
         capability "Switch"
-	}
-    tiles(scale:2) {
-    
-    	standardTile("fanSpeed", "device.switch", width: 2, height: 2, canChangeIcon: true) {
-     		state "off", label:"off", action: "on", icon: "st.thermostat.fan-off", backgroundColor: "#ffffff", nextState: "turningOn"
-			state "off01", label: "low", action: "on", icon: "st.thermostat.fan-off", backgroundColor: "#ffffff", nextState: "turningOn"
-           	state "off02", label: "medium", action: "on", icon: "st.thermostat.fan-off", backgroundColor: "#ffffff", nextState: "turningOn"
-			state "off03", label: "high", action: "on", icon: "st.thermostat.fan-off", backgroundColor: "#ffffff", nextState: "turningOn"
-			state "off04", label: "max", action: "on", icon: "st.thermostat.fan-off", backgroundColor: "#ffffff", nextState: "turningOn"
-            state "on01", label: "low", action: "off", icon: "st.thermostat.fan-on", backgroundColor: "#79b821", nextState: "turningOff"
-           	state "on02", label: "medium", action: "off", icon: "st.thermostat.fan-on", backgroundColor: "#79b821", nextState: "turningOff"
-			state "on03", label: "high", action: "off", icon: "st.thermostat.fan-on", backgroundColor: "#79b821", nextState: "turningOff"
-			state "on04", label: "max", action: "off", icon: "st.thermostat.fan-on", backgroundColor: "#79b821", nextState: "turningOff"
-			state "adjusting", label: "Adjusting Fan", action:"off", icon:"st.switches.switch.on", backgroundColor:"#00a0dc"
-            state "turningOff", label:"Turning Fan Off", action:"on", icon:"st.switches.switch.off", backgroundColor:"#ffffff", nextState:"adjusting"
-        }
-    	main(["fanSpeed"])
         
+        attribute "fanMode", "string"
+	}
+    
+    tiles(scale:2) {    
+    	standardTile("switch", "device.switch", width: 2, height: 2, canChangeIcon: true, decoration: "flat") {
+            state "on", label: '${name}', action: "off", icon: "st.thermostat.fan-on", backgroundColor: "#00a0dc", nextState: "turningOff"
+     		state "off", label: '${name}', action: "on", icon: "st.thermostat.fan-off", backgroundColor: "#ffffff", nextState: "turningOn", defaultState: true      
+			state "turningOn", label: "turning on", action:"off", icon:"st.thermostat.fan-on", backgroundColor:"#00a0dc"
+            state "turningOff", label:"turning off", action:"on", icon:"st.thermostat.fan-off", backgroundColor:"#ffffff"
+        }
+    	main(["switch"])
+		details(["switch"]) 
     }
 }
 
+def getName() {
+	return device.componentLabel
+}
+
+def installed() {
+	log.info "Installed ${device.name} : ${device.deviceNetworkId}"
+	sendEvent(name: "switch", value: "off")
+}
+
+def parse(String description) {
+}
+
 def off() {
-	parent.fanOff()
+	log.info "CHILD ${device.label} TURNED OFF"
+    sendEvent(name: "switch", value: "off")
+    parent.setFanSpeed(0)
 }
 
 def on() {
-	log.info "CHILD ${getDataValue('speedVal')} TURNED ON"    
-    parent.setFanSpeed(getDataValue("speedVal"))
+	log.info "CHILD ${device.label} TURNED ON"
+    // Get just the integer part from the deviceNetworkId
+    def speed = Integer.parseInt(device.deviceNetworkId.split("\\.")[1])
+    
+    sendEvent(name: "switch", value: "on")
+    log.debug "Sending fanSpeed event: ${speed}"
+    parent.setFanSpeed(speed)
 }

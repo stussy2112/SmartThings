@@ -24,6 +24,7 @@ metadata {
 		capability "Switch"
 		capability "Switch Level"
 		capability "Health Check"
+		capability "Light"
 
 		command "fanOff"
 		command "fanOn"
@@ -33,35 +34,27 @@ metadata {
 		command "lightOn"
 		command "lightOff"
 
-	  fingerprint profileId: "0104", inClusters: "0000, 0003, 0004, 0005, 0006, 0008, 0202", outClusters: "0003, 0019", manufacturer: "King Of Fans, Inc.", model: "HDC52EastwindFan", deviceJoinName: "Zigbee Fan Controller"
+	  	fingerprint profileId: "0104", inClusters: "0000, 0003, 0004, 0005, 0006, 0008, 0202", outClusters: "0003, 0019", manufacturer: "King Of Fans, Inc.", model: "HDC52EastwindFan", deviceJoinName: "Zigbee Fan Controller"
 	}
 
-	simulator {
-		status "on":  "command: 2003, payload: FF"
-		status "off": "command: 2003, payload: 00"
-		status "09%": "command: 2003, payload: 09"
-		status "10%": "command: 2003, payload: 0A"
-		status "33%": "command: 2003, payload: 21"
-		status "66%": "command: 2003, payload: 42"
-		status "99%": "command: 2003, payload: 63"
-
-		// reply messages
-		reply "2001FF,delay 5000,2602": "command: 2603, payload: FF"
-		reply "200100,delay 5000,2602": "command: 2603, payload: 00"
-		reply "200119,delay 5000,2602": "command: 2603, payload: 19"
-		reply "200132,delay 5000,2602": "command: 2603, payload: 32"
-		reply "20014B,delay 5000,2602": "command: 2603, payload: 4B"
-		reply "200163,delay 5000,2602": "command: 2603, payload: 63"
-	}
+  	preferences {
+    	page(name: "rebuildChildren", title: "This does not display on DTH preference page")
+        	section("section") {
+            	input(name: "refreshChildren", type: "bool", title: "Delete & Recreate all child devices?\n\nTypically used after modifying the parent device name " +
+              		"above to give all child devices the new name.\n\nPLEASE NOTE: Child Devices must be removed from any smartApps BEFORE attempting this " +
+              		"process or 'An unexpected error' occurs attempting to delete the child's.")
+      		}
+  	}
 
 	tiles(scale: 2) {
-		multiAttributeTile(name: "fanSpeed", type: "generic", width: 3, height: 2, canChangeIcon: true) {
+		multiAttributeTile(name: "fanSpeed", type: "lighting", width: 6, height: 4, canChangeIcon: true) {
 			tileAttribute("device.fanSpeed", key: "PRIMARY_CONTROL") {
-				attributeState "0", label: "Fan Off", action: "fanOn", icon: "st.thermostat.fan-off", backgroundColor: "#ffffff", nextState: "adjusting"
+				attributeState "0", label: "Fan Off", action: "fanOn", icon: "st.thermostat.fan-off", backgroundColor: "#ffffff", nextState: "adjusting", defaultState: true				
 				attributeState "1", label: "low", action: "fanOff", icon: "st.thermostat.fan-on", backgroundColor: "#00a0dc", nextState: "turningOff"
 				attributeState "2", label: "medium", action: "fanOff", icon: "st.thermostat.fan-on", backgroundColor: "#00a0dc", nextState: "turningOff"
 				attributeState "3", label: "high", action: "fanOff", icon: "st.thermostat.fan-on", backgroundColor: "#00a0dc", nextState: "turningOff"
 				attributeState "4", label: "max", action: "fanOff", icon: "st.thermostat.fan-on", backgroundColor: "#00a0dc", nextState: "turningOff"
+                attributeState "6", label: "Comfort Breeze™", action: "fanOff", icon: "st.thermostat.fan-on", backgroundColor: "#00a0dc", nextState: "turningOff"
 				attributeState "adjusting", label: "Adjusting Fan", action:"fanOff", icon:"st.switches.switch.on", backgroundColor:"#00a0dc"
 				attributeState "turningOff", label:"Turning Fan Off", action:"fanOn", icon:"st.switches.switch.off", backgroundColor:"#ffffff", nextState:"adjusting"
 			}
@@ -69,21 +62,31 @@ metadata {
 				attributeState "VALUE_UP", action: "raiseFanSpeed"
 				attributeState "VALUE_DOWN", action: "lowerFanSpeed"
 			}
-		}
-		multiAttributeTile(name:"light", type: "lighting", width: 3, height: 2, canChangeIcon: true){
-			tileAttribute ("device.switch", key: "PRIMARY_CONTROL") {
-				attributeState "on", label:'${name}', action:"off", icon:"st.switches.light.on", backgroundColor:"#00a0dc", nextState:"turningOff"
-				attributeState "off", label:'${name}', action:"on", icon:"st.switches.light.off", backgroundColor:"#ffffff", nextState:"turningOn"
-				attributeState "turningOn", label:"Turning on light", action:"off", icon:"st.switches.light.on", backgroundColor:"#00a0dc", nextState:"on"
-				attributeState "turningOff", label:"Turning off light", action:"on", icon:"st.switches.light.off", backgroundColor:"#ffffff", nextState:"off"
+            
+			tileAttribute ("device.level", key: "SLIDER_CONTROL") {
+				attributeState "level", action:"switch level.setLevel"
 			}
+            
 			tileAttribute ("device.level", key: "SLIDER_CONTROL") {
 				attributeState "level", action:"switch level.setLevel"
 			}
 		}
+        
+    	childDeviceTile("fanMode1", "fanMode1", height: 2, width: 2)
+    	childDeviceTile("fanMode2", "fanMode2", height: 2, width: 2)
+    	childDeviceTile("fanMode3", "fanMode3", height: 2, width: 2)
+    	childDeviceTile("fanMode4", "fanMode4", height: 2, width: 2)
+    	childDeviceTile("fanMode6", "fanMode6", height: 2, width: 2)
+        
+    	standardTile("light", "device.switch", width: 2, height: 2) {
+            state "on", label: '${currentValue}', action: "switch.off", icon: "st.switches.light.on", backgroundColor: "#00a0dc", nextState:"turningOff"
+            state "off", label: '${currentValue}', action: "switch.on", icon: "st.switches.light.off", backgroundColor: "#ffffff", nextState:"turningOn", defaultState: true
+            state "turningOn", label:"Turning on light", action:"off", icon:"st.switches.light.on", backgroundColor:"#00a0dc", nextState:"on"
+			state "turningOff", label:"Turning off light", action:"on", icon:"st.switches.light.off", backgroundColor:"#ffffff", nextState:"off"
+        }
 
 		main "fanSpeed"
-		details(["fanSpeed", "light"])
+		details(["fanSpeed", "light", "fanMode1", "fanMode2", "fanMode3", "fanMode4", "fanMode6"])
 	}
 }
 
@@ -114,16 +117,28 @@ def configure() {
 }
 
 def installed() {
+	log.info "Installed ${device.displayName}"
 	initialize()
+    // TODO: Change the name to end in "Light"
 	if ((device.currentState("level")?.value == null) || (device.currentState("level")?.value == 0)) {
-        sendEvent(name: "level", value: 100)
-    }
+		sendEvent(name: "level", value: 100)
+	}
+    sendEvent(name: "switch", value: "on")
+    sendEvent(name: "switch", value: "off")
+    sendEvent(name: "switch", value: "on")
+    sendEvent(name: "switch", value: "off")
 }
 
 def initialize() {
 	log.info "Initializing..."
+    
+    if (refreshChildren) {
+    	deleteChildren()
+        device.updateSetting("refreshChildren", false)
+    } 
+    
     createFanChildren()
-    response(refresh() + configure())
+	response(refresh() + configure())
 }
 
 // Parse incoming device messages to generate events
@@ -140,20 +155,30 @@ def parse(String description) {
     def descMap = zigbee.parseDescriptionAsMap(description)
     log.debug "Parsed map ${descMap}"
     if (descMap && descMap.clusterInt == FAN_CLUSTER_ID) {
+        log.debug "FAN REPORTING CONFIG RESPONSE: ${zigbee.parse(description)}"
     	if (descMap.data && descMap.data[0] == "00") {
-            log.debug "FAN REPORTING CONFIG RESPONSE: ${zigbee.parse(description)}"
             event = createEvent(name: "checkInterval", value: 60 * 12, displayed: false, data: [protocol: "zigbee", hubHardwareId: device.hub.hardwareID])
             sendEvent(event)
             return event
         }
         if (descMap.attrInt == FAN_ATTR_ID) {
             log.info "Fan event detected on controller"
-            return createEvent(name: "fanSpeed", value: Math.max(Integer.parseInt(descMap.value), 0))
+            def speed = Math.max(Integer.parseInt(descMap.value), 0)
+        	syncChildren(speed)
+            return createEvent(name: "fanSpeed", value: speed)
         }
     }
 
     log.warn "DID NOT PARSE MESSAGE for description : $description"
 	log.debug "parsedDescriptionAsMap: ${descMap}"
+}
+
+def updated() {
+	log.info "Updated..."
+	if (state.oldLabel != device.label) {
+    	updateChildLabel()
+    }
+	initialize()
 }
 
 def off() {
@@ -187,7 +212,11 @@ def setFanSpeed(speed) {
     // only update if the new fan speed is different than the current fan speed
     if (speed != fanNow) {
         state.lastFanSpeed = fanNow
-    	def setSpeed = Math.max(Math.min(speed?.intValue() ?: 0, 4), 0)
+    	def setSpeed = Math.max(Math.min(speed?.intValue() ?: 0, 6), 0)
+        if (setSpeed == 5) { 
+        	setSpeed = 4 
+        }
+        syncChildren(setSpeed)
 	    def newFanSpeed = String.format("%02d", setSpeed)		// Map the speed int to the string value. String value is "0" + speed int
     	log.info "Adjusting Fan Speed to " + getFanName()[newFanSpeed]
         sendEvent(name: "fanSpeed", value: setSpeed)
@@ -211,7 +240,8 @@ def setLevel(value, rate = null) {
 
 def raiseFanSpeed() {
 	def currentValue = device.currentValue("fanSpeed")?.intValue() ?: 0
-	return setFanSpeed(Math.min(currentValue + 1, 4))
+    if (4 == currentValue) { currentValue = 5 }
+	return setFanSpeed(Math.min(currentValue + 1, 6))
 }
 
 def lowerFanSpeed() {
@@ -232,18 +262,82 @@ def refresh() {
     return zigbee.onOffRefresh() + zigbee.levelRefresh() + zigbee.readAttribute(FAN_CLUSTER_ID, FAN_ATTR_ID)
 }
 
+private syncChildren(speed) {
+	log.info "Syncing children: ${speed}"
+    
+    def setSpeed = Math.max(Math.min(speed?.intValue() ?: 0, 6), 0)
+    def newFanSpeed = String.format("%02d", setSpeed)	
+    
+	getChildDevices()?.each { c ->
+    	def eventValue = c.deviceNetworkId.endsWith(".${newFanSpeed}") ? "on" : "off"
+    	log.debug "Setting ${c.deviceNetworkId} to ${eventValue}"
+        c.sendEvent(name: "switch", value: eventValue)
+    }
+}
+
+private createChildDevice(String typeName, String deviceNetworkId, Map properties) {
+	def childDevice = getChildDevices()?.find {
+    	it.device.deviceNetworkId == deviceNetworkId
+    }
+    
+    if (!childDevice) {
+        log.debug "Creating child fan ${deviceNetworkId} : ${properties}"
+    	return addChildDevice(typeName, deviceNetworkId, null, properties)
+    } else {
+        log.debug "Child exists: ${deviceNetworkId}"
+    }
+}
+
 private createFanChildren() {
-	for(i in 1..4) {
+	for(i in 1..6) {
     	def networkId = "${device.deviceNetworkId}.0${i}"
     	def childFanSwitch = getChildDevices()?.find {
         	it.device.deviceNetworkId == networkId
         }
-        if (!childDevice) {
-           	log.info "Creating child fan mode ${childDevice}"
-        	def data = [speedVal:"0${i}", "parent":device.id]
-        	def properties = [isComponent: true, componentName: "fanMode${i}", componentLabel: "${getFanName()["0${i}"]}", completedSetup: true, label: "${device.displayName} ${getFanName()["0${i}"]}", data: data]
-        	childDevice = addChildDevice("Zigbee Fan Controller - Fan Speed Child Device", networkId, null, properties)
+        if (!childFanSwitch) {
+        	if (5 == i) {
+            	log.debug "Skipping invalid fan mode: ${i}"
+                continue
+            }
+            def name = "${getFanName()["0${i}"]}"
+        	def properties = [isComponent: true, componentName: "fanMode${i}", componentLabel: name, completedSetup: true, label: "${device.displayName} ${name}"]
+            childFanSwitch = createChildDevice("Zigbee Fan Controller - Fan Speed Child Device", networkId, properties)
+            log.debug "${childFanSwitch.componentLabel}"
+        } else {
+        	log.info "Child exists: ${networkId}"
         }
+    }
+    syncChildren(device.currentValue("fanSpeed"))
+}
+
+private createLightChild() {
+    def properties = [isComponent: false, componentName: "fanLight", componentLabel: "Light", completedSetup: true, label: "${device.displayName} Light"]
+	return createChildDevice("Zigbee Fan Controller - Light", "${device.deviceNetworkId}.Light", properties)
+}
+
+private updateChildrenLabels() {
+	log.info "Updating child labels"    
+	(1..6).each { 
+    	if (5 != it) {
+            // Find the matching child device
+            def networkId = "${device.deviceNetworkId}.0${i}"
+            def childDevice = getChildDevices()?.find { c ->
+                c.device.deviceNetworkId == networkId
+            }
+            if (childDevice) {
+            	def label = "${device.displayName} ${getFanName()["0${i}"]}"
+            	log.debug "Updating ${networkId} to ${label}"
+                childDevice.label = label
+            }
+        }
+    }
+}
+
+private deleteChildren() {	
+    log.info "Deleting children"
+    getChildDevices()?.each {c ->
+    	log.debug "Deleting ${c.deviceNetworkId}"
+  		deleteChildDevice(c.deviceNetworkId)
     }
 }
 
