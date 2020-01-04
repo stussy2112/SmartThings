@@ -1,25 +1,21 @@
 metadata {
-	definition (name: "Zigbee Fan Controller - Fan Speed Child Device", namespace: "stussy2112", author: "Sean Williams", ocfDeviceType: "oic.d.switch") {
+	definition (name: "Zigbee Fan Controller - Fan Speed Child Device", namespace: "stussy2112", author: "Sean Williams", ocfDeviceType: "oic.d.switch", vid: "generic-switch") {
 		capability "Actuator"
         capability "Switch"
+		capability "Sensor"
+		capability "Refresh"
         
         attribute "fanMode", "string"
 	}
     
     tiles(scale:2) {    
     	standardTile("switch", "device.switch", width: 2, height: 2, canChangeIcon: true, decoration: "flat") {
-            state "on", label: '${name}', action: "off", icon: "st.thermostat.fan-on", backgroundColor: "#00a0dc", nextState: "turningOff"
-     		state "off", label: '${name}', action: "on", icon: "st.thermostat.fan-off", backgroundColor: "#ffffff", nextState: "turningOn", defaultState: true      
-			state "turningOn", label: "turning on", action:"off", icon:"st.thermostat.fan-on", backgroundColor:"#00a0dc"
-            state "turningOff", label:"turning off", action:"on", icon:"st.thermostat.fan-off", backgroundColor:"#ffffff"
+            state "on", label: '${name}', action: "off", icon: "st.Lighting.light24", backgroundColor: "#00a0dc", nextState: "turningOff"
+     		state "off", label: '${name}', action: "on", icon: "st.Lighting.light24", backgroundColor: "#ffffff", nextState: "turningOn", defaultState: true
+			state "turningOn", label: "turning on", action:"off", icon:"st.Lighting.light24", backgroundColor:"#00a0dc"
+            state "turningOff", label:"turning off", action:"on", icon:"st.Lighting.light24", backgroundColor:"#ffffff"
         }
-    	main(["switch"])
-		details(["switch"]) 
     }
-}
-
-def getName() {
-	return device.componentLabel
 }
 
 def installed() {
@@ -31,17 +27,24 @@ def parse(String description) {
 }
 
 def off() {
-	log.info "CHILD ${device.label} TURNED OFF"
-    sendEvent(name: "switch", value: "off")
-    parent.setFanSpeed(0)
+	log.info "CHILD ${device.label} TURNED OFF, passing switch event to parent"
+    parent.childOff(device.deviceNetworkId)
 }
 
 def on() {
-	log.info "CHILD ${device.label} TURNED ON"
-    // Get just the integer part from the deviceNetworkId
-    def speed = Integer.parseInt(device.deviceNetworkId.split("\\.")[1])
-    
-    sendEvent(name: "switch", value: "on")
-    log.debug "Sending fanSpeed event: ${speed}"
-    parent.setFanSpeed(speed)
+	log.info "CHILD ${device.label} TURNED ON, passing switch event to parent"
+    parent.childOn(device.deviceNetworkId)
+}
+
+/**
+ * PING is used by Device-Watch in attempt to reach the Device
+ * */
+def ping() {
+	log.info "Refreshing from child: ${device.label}"
+	// Intentionally left blank as parent should handle this
+}
+
+void refresh() {
+	log.info "Refreshing from child fan switch..."
+	parent.childRefresh(device.deviceNetworkId)
 }
