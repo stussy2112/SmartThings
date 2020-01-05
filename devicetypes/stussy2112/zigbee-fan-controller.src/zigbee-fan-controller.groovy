@@ -15,11 +15,10 @@
 import physicalgraph.zigbee.zcl.DataType
 
 metadata {
-	definition (name: "ZigBee Fan Controller", namespace: "stussy2112", author: "Sean Williams", ocfDeviceType: "oic.d.fan", mcdSync: true, runLocally: true, executeCommandsLocally: true, genericHandler: "Zigbee") {
+	definition (name: "ZigBee Fan Controller", namespace: "stussy2112", author: "Sean Williams", ocfDeviceType: "oic.d.fan", genericHandler: "Zigbee") {
 		capability "Actuator"
 		capability "Configuration"
 		capability "Fan Speed"
-		capability "Polling"
 		capability "Refresh"
 		capability "Switch"
 		capability "Switch Level"
@@ -130,7 +129,7 @@ def installed() {
     
     sendEvent(name: "fanSpeed", value: 1)
     state.lastFanSpeed = 1
-    for (i in 1..3) {
+    for (i in 1..2) {
     	sendEvent(name: "switch", value: "on")
     	sendEvent(name: "switch", value: "off")
     }
@@ -274,14 +273,14 @@ def lowerFanSpeed() {
 }
 
 // Child handling
-def ArrayList childOff(String deviceNetworkId) {
+def childOff(String deviceNetworkId) {
 	log.info "Parent recieved 'off' command from ${deviceNetworkId}"
     def endpointId = getEndpointId(deviceNetworkId)
     // 1..6 is a fan, 7 is the light
     return (1..6).contains(endpointId) ? setFanSpeed(0) : off()
 }
 
-def ArrayList childOn(String deviceNetworkId) {
+def childOn(String deviceNetworkId) {
 	log.info "Parent recieved 'on' command from ${deviceNetworkId}"
     def endpointId = getEndpointId(deviceNetworkId)
     // 1..6 is a fan, 7 is the light
@@ -346,11 +345,11 @@ private createChildDevices() {
         def networkId = "${device.deviceNetworkId}-ep${key}"
         def namespace = "stussy2112"
         def typeName = "Zigbee Fan Controller - Fan Speed Child Device"
-        def properties = [isComponent: true, componentName: "fanMode${key}", componentLabel: value, completedSetup: true, label: "${value}"]
+        def properties = [completedSetup: true, label: "${device.displayName} ${value}", isComponent: true, componentName: "fanMode${key}", componentLabel: value]
 
         if (7 == key) {
             typeName = "Zigbee Fan Controller - Light Child Device"
-            properties = [isComponent: false, componentName: "fanLight", componentLabel: value, completedSetup: true, label: "${device.displayName} ${value}"]
+            properties = [completedSetup: true, label: "${device.displayName} ${value}", isComponent: false, componentName: "fanLight", componentLabel: value]
         }
         def childDevice = createChildDevice(typeName, networkId, properties)
     }
