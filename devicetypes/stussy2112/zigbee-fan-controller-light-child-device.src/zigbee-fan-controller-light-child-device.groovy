@@ -13,7 +13,7 @@
  *  for the specific language governing permissions and limitations under the License.
  */
 metadata {
-	definition (name: "Zigbee Fan Controller - Light Child Device", namespace: "stussy2112", author: "Sean Williams", ocfDeviceType: "oic.d.light", vid:"generic-dimmer") {
+	definition (name: "Zigbee Fan Controller - Light Child Device", namespace: "stussy2112", author: "Sean Williams", runLocally: true, executeCommandsLocally: false, ocfDeviceType: "oic.d.light", vid:"generic-dimmer") {
 		capability "Actuator"
 		capability "Switch"
 		capability "Switch Level"

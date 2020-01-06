@@ -15,7 +15,7 @@
 import physicalgraph.zigbee.zcl.DataType
 
 metadata {
-	definition (name: "ZigBee Fan Controller", namespace: "stussy2112", author: "Sean Williams", runLocally: true, executeCommandsLocally: true, mcdSync: true, ocfDeviceType: "oic.d.fan", genericHandler: "Zigbee") {
+	definition (name: "ZigBee Fan Controller", namespace: "stussy2112", author: "Sean Williams", runLocally: true, executeCommandsLocally: false, mcdSync: true, ocfDeviceType: "oic.d.fan", genericHandler: "Zigbee") {
 		capability "Actuator"
 		capability "Configuration"
 		capability "Fan Speed"
@@ -47,24 +47,28 @@ metadata {
 	tiles(scale: 2) {
 		multiAttributeTile(name: "fanSpeed", type: "lighting", width: 6, height: 4, canChangeIcon: true) {
 			tileAttribute("device.fanSpeed", key: "PRIMARY_CONTROL") {
-				attributeState "0", label: "Fan Off", action: "fanOn", icon: "st.thermostat.fan-off", backgroundColor: "#ffffff", nextState: "turningOn"
-				attributeState "1", label: "low", action: "fanOff", icon: "st.thermostat.fan-on", backgroundColor: "#00a0dc", nextState: "turningOff"
-				attributeState "2", label: "medium", action: "fanOff", icon: "st.thermostat.fan-on", backgroundColor: "#00a0dc", nextState: "turningOff"
-				attributeState "3", label: "high", action: "fanOff", icon: "st.thermostat.fan-on", backgroundColor: "#00a0dc", nextState: "turningOff"
-				attributeState "4", label: "max", action: "fanOff", icon: "st.thermostat.fan-on", backgroundColor: "#00a0dc", nextState: "turningOff"
-				attributeState "6", label: "Comfort Breeze™", action: "fanOff", icon: "st.thermostat.fan-on", backgroundColor: "#00a0dc", nextState: "turningOff"
-				attributeState "adjusting", label: "Adjusting Fan", action: "setFanSpeed", icon:"st.switches.switch.on", backgroundColor:"#00a0dc"
-				attributeState "turningOff", label:"Turning Fan Off", action: "fanOn", icon:"st.switches.switch.off", backgroundColor:"#ffffff", nextState:"adjusting"
-                attributeState "turningOn", label:"Turning Fan On", action: "fanOff", icon:"st.switches.switch.off", backgroundColor:"#ffffff", nextState:"adjusting"
+				attributeState "0", label: "Fan Off", action: "on", icon: "st.thermostat.fan-off", backgroundColor: "#ffffff", nextState: "adjusting"
+				attributeState "1", label: "low", action: "off", icon: "st.thermostat.fan-on", backgroundColor: "#00a0dc", nextState: "adjusting"
+				attributeState "2", label: "medium", action: "off", icon: "st.thermostat.fan-on", backgroundColor: "#00a0dc", nextState: "adjusting"
+				attributeState "3", label: "high", action: "off", icon: "st.thermostat.fan-on", backgroundColor: "#00a0dc", nextState: "adjusting"
+				attributeState "4", label: "max", action: "off", icon: "st.thermostat.fan-on", backgroundColor: "#00a0dc", nextState: "adjusting"
+				attributeState "6", label: "Comfort Breeze™", action: "off", icon: "st.thermostat.fan-on", backgroundColor: "#00a0dc", nextState: "adjusting"
+				attributeState "adjusting", label: "Adjusting Fan", action: "on", icon:"st.switches.switch.on", backgroundColor:"#00a0dc"
+				attributeState "turningOff", label:"Turning Fan Off", action: "on", icon:"st.switches.switch.off", backgroundColor:"#ffffff", nextState:"adjusting"
+                attributeState "turningOn", label:"Turning Fan On", action: "off", icon:"st.switches.switch.off", backgroundColor:"#ffffff", nextState:"adjusting"
 			}
 			tileAttribute("device.fanSpeed", key: "VALUE_CONTROL") {
 				attributeState "VALUE_UP", action: "raiseFanSpeed"
 				attributeState "VALUE_DOWN", action: "lowerFanSpeed"
 			}
-			tileAttribute ("device.level", label: "brightness", key: "SLIDER_CONTROL") {
+			tileAttribute ("device.level", label: "Brightness", key: "SLIDER_CONTROL", range:"(20..100)") {
 				attributeState "level", action:"switch level.setLevel"
 			}
 		}
+        
+        /*controlTile ("levelSliderControl", "device.level", label: "Brightness", "slider", height: 1, width: 6, range:"(20..100)") {
+            state "level", action:"switch level.setLevel"
+        }*/
         
         childDeviceTiles("all")
 	}
@@ -200,28 +204,32 @@ def updated() {
     }    
 }
 
-def off() {
+def lightOff() {
     log.info("Turning Off Light")
     def cmds = zigbee.off() + refreshLight()
     log.trace "Light off commands: ${cmds}"
     return cmds
 }
 
-def on() {
+def lightOn() {
     log.info("Turning On Light")    
     def cmds = zigbee.on() + "st rattr 0x${device.deviceNetworkId} 0x01 ${zigbee.ONOFF_CLUSTER} 0x0000"//refreshLight()
     log.trace "Light on commands: ${cmds}"
     return cmds
 }
 
-def fanOff() {
+def off() {
 	log.info "Turning Fan Off";
-    return setFanSpeed(0)
+    def cmds = setFanSpeed(0)
+    log.trace "Fan Off commands: ${cmds}"
+    return cmds
 }
 
-def fanOn() {
+def on() {
 	log.info "Turning Fan On";
-    return setFanSpeed(state.lastFanSpeed ?: 1)
+    def cmds = setFanSpeed(state.lastFanSpeed ?: 1)
+    log.trace "Fan On commands: ${cmds}"
+    return cmds
 }
 
 def setFanSpeed(speed) {	
@@ -238,6 +246,7 @@ def setFanSpeed(speed) {
 	    log.info "Adjusting Fan Speed to ${childDeviceNames[setSpeed]}"        
         //cmds << zigbee.writeAttribute(FAN_CLUSTER_ID, FAN_ATTR_ID, DataType.ENUM8, String.format("%02d", setSpeed))
         //cmds << "st wattr 0x${device.deviceNetworkId} 0x01 0x0202 0x0000 0x0030 {${String.format("%02d", setSpeed)}}"
+        // TODO: Figure out how to send a response for the fan of 01 (on) or 00 (off)
         cmds << "st wattr 0x${device.deviceNetworkId} 0x01 ${FAN_CLUSTER_ID} ${FAN_ATTR_ID} 0x0030 {${String.format("%02d", setSpeed)}}" << "delay ${DEFAULT_DELAY}"
     }
     
@@ -276,14 +285,14 @@ def childOff(String deviceNetworkId) {
 	log.info "Parent recieved 'off' command from ${deviceNetworkId}"
     def endpointId = getEndpointId(deviceNetworkId)
     // 1..6 is a fan, 7 is the light
-    return (1..6).contains(endpointId) ? setFanSpeed(0) : off()
+    return (1..6).contains(endpointId) ? off() : lightOff() //setFanSpeed(0) : off()
 }
 
 def childOn(String deviceNetworkId) {
 	log.info "Parent recieved 'on' command from ${deviceNetworkId}"
     def endpointId = getEndpointId(deviceNetworkId)
     // 1..6 is a fan, 7 is the light
-    return (1..6).contains(endpointId) ? setFanSpeed(endpointId) : on()
+    return (1..6).contains(endpointId) ? setFanSpeed(endpointId) : lightOn()
 }
 
 def childRefresh(String deviceNetworkId) {
@@ -308,7 +317,8 @@ def poll() {
 
 def refresh() {
 	log.info "Refreshing..."
-    ArrayList cmds = refreshLight() << "delay ${DEFAULT_DELAY}" << refreshFan()
+    //ArrayList cmds = refreshLight() << "delay ${DEFAULT_DELAY}" << refreshFan()
+    ArrayList cmds = [] << refreshFan()
     //ArrayList cmds = [ zigbee.readAttribute(FAN_CLUSTER_ID, FAN_ATTR_ID), zigbee.onOffRefresh(), zigbee.levelRefresh() ]
     log.trace "Refresh commands: ${cmds}"
     return cmds
