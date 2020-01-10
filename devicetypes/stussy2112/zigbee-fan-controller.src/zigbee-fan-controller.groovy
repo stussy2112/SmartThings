@@ -18,7 +18,7 @@ import physicalgraph.device.HubAction
 import physicalgraph.zigbee.zcl.DataType
 
 metadata {
-	definition (name: "ZigBee Fan Controller", namespace: "stussy2112", author: "Sean Williams", mcdSync: true, ocfDeviceType: "oic.d.fan", minHubCoreVersion: '000.025.0000', genericHandler: "Zigbee") {
+	definition (name: "ZigBee Fan Controller", namespace: "stussy2112", author: "Sean Williams", cstHandler: true, runLocally: true, executeCommandsLocally: true, ocfDeviceType: "oic.d.fan", minHubCoreVersion: '000.025.0000', genericHandler: "Zigbee") {
 		capability "Actuator"
 		capability "Configuration"
 		capability "Refresh"
@@ -51,6 +51,17 @@ metadata {
   	}
 
 	tiles(scale: 2) {
+		multiAttributeTile(name:"switch", type: "lighting", width: 6, height: 4, canChangeIcon: true){
+			tileAttribute ("device.switch", key: "PRIMARY_CONTROL") {
+				attributeState "on", label:'${name}', action:"switch.off", icon:"st.switches.switch.on", backgroundColor:"#00a0dc", nextState:"turningOff"
+				attributeState "off", label:'${name}', action:"switch.on", icon:"st.switches.switch.off", backgroundColor:"#ffffff", nextState:"turningOn"
+				attributeState "turningOn", label:"Turning on light", action:"switch.off", icon:"st.switches.switch.on", backgroundColor:"#00a0dc", nextState:"turningOff"
+				attributeState "turningOff", label:"Turning off light", action:"switch.on", icon:"st.switches.switch.off", backgroundColor:"#ffffff", nextState:"turningOn"
+			}
+			tileAttribute ("device.level", key: "SLIDER_CONTROL", range:"(20..100)") {
+				attributeState "level", action:"setBrightnessLevel"
+			}
+		}
 		multiAttributeTile(name: "fanSpeed", type: "lighting", width: 6, height: 4, canChangeIcon: true) {
 			tileAttribute("device.fanSpeed", key: "PRIMARY_CONTROL") {
 				attributeState "0", label: "Fan Off", action: "fanOn", icon: "st.thermostat.fan-off", backgroundColor: "#ffffff", nextState: "adjusting"
@@ -66,9 +77,6 @@ metadata {
 			tileAttribute("device.fanSpeed", key: "VALUE_CONTROL") {
 				attributeState "VALUE_UP", action: "raiseFanSpeed"
 				attributeState "VALUE_DOWN", action: "lowerFanSpeed"
-			}
-			tileAttribute ("device.level", label: "Brightness", key: "SLIDER_CONTROL", range:"(20..100)") {
-				attributeState "level", action:"setBrightnessLevel"
 			}
 		}
         
@@ -86,8 +94,8 @@ metadata {
 		  state "default", label:"refresh", action:"refresh.refresh", icon:"st.secondary.refresh"
 	  	}
         
-        main "fanSpeed"
-		details(["fanSpeed", childDeviceTiles("all"), "refresh"])
+        /*main "switch"
+		details(["switch", "fanSpeed", childDeviceTiles("all"), "refresh"])*/
 	}
 }
 	
@@ -277,14 +285,14 @@ def on() {
 }
 
 public List setBrightnessLevel(value, rate = null) {
-	log.debug "Setting level to ${value}"
+	log.debug "Setting brightness level to ${value}"
 
     Integer level = Math.max(Math.min(value?.intValue() ?: 0, 100), 0)
     rate = Math.max(Math.min(rate?.intValue() ?: 0, state?.dimRate), 0)
     
     log.info "Adjusting Light Brightness: ${level} : ${rate}"
     List cmds = zigbee.setLevel(level, rate) << refreshLight()
-    log.trace "Set Level Returning ${cmds}"    
+    log.trace "Set Brightness Level Returning ${cmds}"    
     return cmds.flatten()
 }
 
@@ -298,7 +306,7 @@ public List setFanLevel(value, rate = null) {
     return setFanSpeed(speed)
 }
 
-public List setFanSpeed(speed) {	
+def setFanSpeed(speed) {	
     Integer fanNow = device.currentValue("fanSpeed") ?: 0    //save fanspeed before changing speed so it can be resumed when turned back on    
 	log.info "Requested fanSpeed is ${speed}. Current Fan speed is ${fanNow}"	    
         
@@ -323,7 +331,7 @@ public List setFanSpeed(speed) {
 
 def setLevel(value, rate = null) {
 	log.debug "Setting level to ${value}"
-    return setFanLevel(value)
+    return setBrightnessLevel(value, rate)
 }
 
 public List raiseFanSpeed() {
