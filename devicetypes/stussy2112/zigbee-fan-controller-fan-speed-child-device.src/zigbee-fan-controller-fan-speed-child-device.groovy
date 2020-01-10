@@ -4,6 +4,7 @@ metadata {
         capability "Switch"
 		capability "Sensor"
 		capability "Refresh"
+		capability "Health Check"
         
         attribute "fanMode", "string"
 	}
