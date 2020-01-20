@@ -23,11 +23,6 @@ metadata {
         capability "Light"
 		capability "Sensor"
 	}
-    preferences {
-    	section {
-        	input("dimRate", "enum", title: "Dim Rate", options: ["Instant", "Normal", "Slow", "Very Slow"], defaultValue: "Instant", required: true, displayDuringSetup: true)
-        }
-    }
 
 	simulator {
 		// TODO: define status and reply messages here
@@ -45,16 +40,11 @@ metadata {
                 attributeState "level", action:"switch level.setLevel"
             }
         }
-
-    	standardTile("refresh", "device.switch", decoration: "flat", width: 6, height: 1) {
-		  state "default", label:"refresh", action:"refresh.refresh", icon:"st.secondary.refresh"
-	  	}
 	}
 }
-
+/*
 private Map getDimRates() { [ "Instant":0, "Normal":35, "Slow":50, "Very Slow":100 ] }
 
-// parse events into attributes
 def configure() {
     state.dimRate = dimRates[dimRate]?.intValue() ?: dimRates["Instant"]
     device.updateSetting("dimRate", state.dimRate)
@@ -76,6 +66,18 @@ def updated() {
     state.dimRate = dimRates[dimRate]?.intValue() ?: dimRates["Instant"]
     log.debug "Dim rate: entered = ${dimRate}, actual = ${state.dimRate}"
 }
+
+def refresh() {
+	log.debug "Executing 'refresh(), passing request to parent"
+    parent.childRefresh(device.deviceNetworkId)
+}
+def setState(_variable, _value){
+  state."$_variable" = _value
+}
+
+def getState (_variable){
+  state."$_variable" = _value
+}*/
 
 def on() {
     log.debug "Executing 'on', passing switch event to parent, sending event"
@@ -100,19 +102,6 @@ def uninstalled() {
 // handle commands
 def setLevel(value, rate = null) {
     log.debug "Executing 'setLevel': ${value},${rate}, passing level event to parent"
-    rate = Math.max(Math.min(rate?.intValue() ?: 0, state.dimRate ?: 0), 0)
+    //rate = Math.max(Math.min(rate?.intValue() ?: 0, state.dimRate ?: 0), 0)
     parent.childSetLevel(device.deviceNetworkId, value, rate)
 }
-
-def refresh() {
-	log.debug "Executing 'refresh(), passing request to parent"
-    parent.childRefresh(device.deviceNetworkId)
-}
-/*
-def setState(_variable, _value){
-  state."$_variable" = _value
-}
-
-def getState (_variable){
-  state."$_variable" = _value
-}*/
