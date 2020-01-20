@@ -42,7 +42,7 @@ metadata {
 	}
 
   	preferences {
-		input (name:"offBeforeChange", type:"bool", title: "Turn fan off before changing speed", description: "Some fans need to go to the 'off' state before selecting a new speed", defaultValue: true, default: false, required: true, displayDuringSetup: true)
+		input (name:"offBeforeChange", type:"bool", title: "Turn fan off before changing speed", description: "Some fans need to go to the 'off' state before selecting a new speed", defaultValue: false, default: false, required: true, displayDuringSetup: true)
         //input (name:"supportedSpeeds", type:"enum", title:"Supported fan speeds", description: "Some fans do not support all the speeds provided by the controller. Please select the speeds that your fan supports.", options: [[1:"Low"], [2:"Medium"], [3:"High"], [4:"Maximum"], [6:"Breeze"]], multiple: true, required: true, displayDuringSetup: true)
         input (name:"createSpeedSwitches", type:"bool", title:"Create speed switches", description: "Additional child switches will be created for the supported speeds of your fan.", defaultValue: false, default: false, required: true, displayDuringSetup: true)
         input (name: "resumeLast", type:"bool", title: "Resume Last Setting when speed switch is turned off", defaultValue: false, default: false, required: true, displayDuringSetup: true)
