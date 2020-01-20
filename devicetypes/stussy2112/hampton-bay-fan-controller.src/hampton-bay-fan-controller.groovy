@@ -200,12 +200,11 @@ def installed() {
 
 // parse message from device into events that SmartThings platform can understand
 def parse(String description) {
-	log.debug "Parsing '${description}'"
+	log.info "Parsing '${description}'"
     
     List events = []
     
     Map descMap = zigbee.parseDescriptionAsMap(description)
-    log.debug "Parse descMap: ${descMap}"
     int cluster = descMap?.clusterInt ?: zigbee.ONOFF_CLUSTER
     Map event = zigbee.getEvent(description)
     if (event) {
@@ -236,7 +235,6 @@ def parse(String description) {
     	log.warn "DID NOT PARSE MESSAGE for description : ${description}"
     }
     
-    log.debug "'parse()' returning: ${events}"
     return events
 }
 
@@ -253,7 +251,7 @@ def updated() {
     	createSpeedSwitches: (createSpeedSwitches == null ? false : createSpeedSwitches),
     	resumeLast: (resumeLast == null ? false : resumeLast),
         supportedSpeeds: defaultSupportedSpeeds,
-        offBeforeChange: (turnOffBeforeSpeedChange == null ? false : turnOffBeforeSpeedChange)
+        offBeforeChange: (offBeforeChange == null ? false : offBeforeChange)
     ]
     log.debug "Updated Preferences: ${state.preferences}"
     state.preferences.each {
@@ -396,7 +394,7 @@ public List<HubAction> setFanSpeed(Number speed) {
         state.lastFanSpeed = fanNow    //save fanspeed before changing speed so it can be resumed when turned back on
 	    log.info "Adjusting Fan Speed to ${fanSpeeds[speed]}"
         if (0 < speed && state.offBeforeChange?.toBoolean()) {
-        	cmds = zigbee.writeAttribute(FAN_CLUSTER, FAN_ATTR_ID, DataType.ENUM8, String.format("%02d", 0)) + "delay ${DEFAULT_DELAY}"
+        	cmds = zigbee.writeAttribute(FAN_CLUSTER, FAN_ATTR_ID, DataType.ENUM8, String.format("%02d", 0))
         }
         cmds += zigbee.writeAttribute(FAN_CLUSTER, FAN_ATTR_ID, DataType.ENUM8, String.format("%02d", speed))
         //cmds << "st wattr 0x${device.deviceNetworkId} 0x01 ${FAN_CLUSTER} ${FAN_ATTR_ID} 0x0030 {${String.format("%02d", setSpeed)}}" << "delay ${DEFAULT_DELAY}"
@@ -772,7 +770,7 @@ private void syncChildDevices(Integer cluster, Map event) {
     	Map childEvent = FAN_CLUSTER == cluster
         	? it.createEvent(name:eventNameMap[event.name], value:((event.value ?: 0 as int) == Integer.parseInt(it.getDataValue('fanSpeed')) ? "on" : "off"))
         	: it.createEvent(name:eventNameMap[event.name], value:event.value)
-        log.debug "Sending ${childEvent} TO child ${it}"
+        //log.debug "Sending ${childEvent} TO child ${it}"
         it.sendEvent(childEvent)
     }
 }
