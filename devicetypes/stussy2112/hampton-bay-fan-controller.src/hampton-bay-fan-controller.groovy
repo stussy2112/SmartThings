@@ -43,7 +43,8 @@ metadata {
 
   	preferences {
 		input (name:"offBeforeChange", type:"bool", title: "Turn fan off before changing speed", description: "Some fans need to go to the 'off' state before selecting a new speed", defaultValue: true, default: false, required: true, displayDuringSetup: true)
-        input (name:"createSpeedSwitches", type:"bool", title:"Create speed switches", description: "Additional child switches will be created for the supported speeds of your fan.", defaultValue: true, default: true, required: true, displayDuringSetup: true)
+        //input (name:"supportedSpeeds", type:"enum", title:"Supported fan speeds", description: "Some fans do not support all the speeds provided by the controller. Please select the speeds that your fan supports.", options: [[1:"Low"], [2:"Medium"], [3:"High"], [4:"Maximum"], [6:"Breeze"]], multiple: true, required: true, displayDuringSetup: true)
+        input (name:"createSpeedSwitches", type:"bool", title:"Create speed switches", description: "Additional child switches will be created for the supported speeds of your fan.", defaultValue: false, default: false, required: true, displayDuringSetup: true)
         input (name: "resumeLast", type:"bool", title: "Resume Last Setting when speed switch is turned off", defaultValue: false, default: false, required: true, displayDuringSetup: true)
 	}
 
@@ -99,10 +100,10 @@ private static final getHOME_AUTOMATION_CLUSTER() { 0x0104 }
 private static final getSCENES_CLUSTER() { 0x0005 }
 private static final Map getCommandInfo() { [ 0x00:"Read", 0x01:"Read Response", 0x02:"Write", 0x04:"Write Response", 0x05:"Write, No Response", 0x06:"Configure Reporting", 0x07:"Configure Reporting Response", 0x0B:"Default Response" ] }
 private static final Map getBindResults() { [ 0:"Success", 132:"Not Supported", 130:"Invalid Endpoint", 140:"Table Full" ] }
-private static final Map getFanSpeeds() { [ 0:[name: "Fan Off", threshold: 0], 1:[name: "Low", threshold: 33], 2:[name: "Medium", threshold: 66], 3:[name: "High", threshold: 99], 4:[name: "Max", threshold: 100], 6:[name: "Breeze", threshold: 101] ] }
+private static final Map getFanSpeeds() { [ 0:[name: "Fan Off", threshold: 0], 1:[name: "Low", threshold: 33], 2:[name: "Medium", threshold: 66], 3:[name: "High", threshold: 99], 4:[name: "Maximum", threshold: 100], 6:[name: "Breeze", threshold: 101] ] }
 private static final Map getSpeedSwitchTypeInfo() { [namespace: "smartthings", typeName: "Child Switch"] }
 
-private Map getChildDeviceSpecs() {
+private final Map getChildDeviceSpecs() {
 	[
     	0: [ name: (fanSpeeds[0].name), createChild: false, data: [ fanSpeed: 0 ] ],
         1: [ name: (fanSpeeds[1].name), typeInfo: (speedSwitchTypeInfo), isComponent: true, createChild: (state.supportedSpeeds.contains(1) && state.createSpeedSwitches), componentName: "fanMode1", syncInfo: [ (FAN_CLUSTER):"fanSpeed"], data: [ fanSpeed: 1 ] ],
@@ -176,6 +177,7 @@ def installed() {
         device.updateSetting(it.key, it.value)
         state[it.key] = it.value
     }
+    //device.updateSetting("supportedSpeeds", state.preferences["supportedSpeeds"].collect { fanSpeeds[it].name })
     
     state.lastFanSpeed = fanSpeeds.keySet().min()
     
@@ -237,25 +239,34 @@ def updated() {
 	log.debug "Updating ${device.displayName} : ${device.deviceNetworkId}"
     
     // If the speed switches were previously created and user is selecting 'false', remove the switches
-    log.trace "xxxxx: ${!createSpeedSwitches && state.preferences["createSpeedSwitches"]}"
     if (!createSpeedSwitches && state.preferences["createSpeedSwitches"]) {
     	log.debug "Should delete children"
 		deleteChildren()
     }
     
-    log.trace "SupportedSpeeds preference: ${supportedSpeeds}"
+    //log.trace "SupportedSpeeds preference (before): ${supportedSpeeds}"
     //defaultSupportedSpeeds.intersect(supportedSpeeds as int[])
     //List<Integer> updatedSupportedSpeeds = (fanSpeeds.keySet() as int[]).intersect(supportedSpeeds ?: [])
     //fanSpeeds.keySet().intersect(state.preferences["supportedSpeeds"].keySet())
     
     // Store the preferences
+    /*supportedSpeeds.each { s -> log.trace "Here >> ${s}" }
+    def updatedSpeeds = supportedSpeeds.collect { s -> 
+    	log.trace "Working preference: ${s}"
+    	fanSpeeds.find {
+        	log.trace "Finding: ${it}:${it.value.name == s}"
+        	it.value.name == s 
+        }?.key 
+    }
+    log.trace "UpdatedSpeeds: ${updatedSpeeds}"*/
+    
     state.preferences = [
     	createSpeedSwitches: (createSpeedSwitches == null ? false : createSpeedSwitches),
     	resumeLast: (resumeLast == null ? false : resumeLast),
-        supportedSpeeds: (supportedSpeeds == null ? defaultSupportedSpeeds : supportedSpeeds),
+        //supportedSpeeds: (supportedSpeeds == null ? defaultSupportedSpeeds : supportedSpeeds.collect { s -> fanSpeeds.find { it.value.name == s }?.key }),
         //supportedSpeeds: (supportedSpeeds == null ? fanSpeeds.collect { [(it.key): (it.value.name)] } : supportedSpeeds),
     	//supportedSpeeds: (supportedSpeeds == null ? ["Low","Medium","High","Max","Breeze"] : supportedSpeeds),
-        //supportedSpeeds: updatedSupportedSpeeds,
+        supportedSpeeds: defaultSupportedSpeeds,
         offBeforeChange: (turnOffBeforeSpeedChange == null ? false : turnOffBeforeSpeedChange)
     ]
     log.debug "Updated Preferences: ${state.preferences}"
@@ -265,10 +276,10 @@ def updated() {
         device.updateSetting(it.key, it.value)
     }    
     
-    device.updateSetting("offBeforeChange", state.preferences["offBeforeChange"].toBoolean())
+    /*device.updateSetting("offBeforeChange", state.preferences["offBeforeChange"].toBoolean())
     device.updateSetting("resumeLast", state.preferences["resumeLast"].toBoolean())
     device.updateSetting("createSpeedSwitches", state.preferences["createSpeedSwitches"].toBoolean())
-    device.updateSetting("supportedSpeeds", state.preferences["supportedSpeeds"])
+    log.trace "SupportedSpeeds preference: ${state.preferences["supportedSpeeds"]}"*/
         
 	if (!getChildDevices() || state.preferences["createSpeedSwitches"]) {
     	log.debug "Should create children"
@@ -542,8 +553,6 @@ private ChildDeviceWrapper createChildDevice(String namespace = "stussy2112", St
 private void createChildDevices() {
     log.debug "Executing 'createChildDevices()'"
     
-    List<Integer> supportedSpeeds = state.preferences["supportedSpeeds"] as int[]
-    log.trace supportedSpeeds
     childDeviceSpecs.findAll { key, value ->
     	// Sync the available speeds with the switches
         /*log.trace value.createChild

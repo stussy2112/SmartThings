@@ -64,9 +64,11 @@ def configure() {
 
 def installed() {
 	log.debug "Installed ${device.name} : ${device.deviceNetworkId}"
+    state.dimRate = dimRates["Instant"]
+    device.updateSetting("dimRate", state.dimRate)
 	// This is set to a default value, but it is the responsibility of the parent to set it to a more appropriate number
 	sendEvent(name: "checkInterval", value: 30 * 60, displayed: false, data: [protocol: "zigbee"])
-    response(configure())
+    configure()
 }
 
 def updated() {
@@ -98,7 +100,7 @@ def uninstalled() {
 // handle commands
 def setLevel(value, rate = null) {
     log.debug "Executing 'setLevel': ${value},${rate}, passing level event to parent"
-    rate = Math.max(Math.min(rate?.intValue() ?: 0, state.dimRate), 0)
+    rate = Math.max(Math.min(rate?.intValue() ?: 0, state.dimRate ?: 0), 0)
     parent.childSetLevel(device.deviceNetworkId, value, rate)
 }
 
