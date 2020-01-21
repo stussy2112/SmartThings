@@ -125,7 +125,7 @@ def configure() {
     
     // OnOff minReportTime 0 seconds, maxReportTime 5 min. Reporting interval if no activity
     int minReportTime = 0
-    int maxReportTime = 120
+    int maxReportTime = 300
     List cmds = [
 		//Set long poll interval
 		//"raw 0x0020 {11 00 02 02 00 00 00}", "delay 100",
@@ -205,6 +205,7 @@ def parse(String description) {
     List events = []
     
     Map descMap = zigbee.parseDescriptionAsMap(description)
+    //log.debug "Parse descMap: ${descMap}"
     int cluster = descMap?.clusterInt ?: zigbee.ONOFF_CLUSTER
     Map event = zigbee.getEvent(description)
     if (event) {
@@ -393,7 +394,8 @@ public List<HubAction> setFanSpeed(Number speed) {
     	speed = convertToSupportedSpeed(speed?.intValue() ?: 0, fanNow)
         state.lastFanSpeed = fanNow    //save fanspeed before changing speed so it can be resumed when turned back on
 	    log.info "Adjusting Fan Speed to ${fanSpeeds[speed]}"
-        if (0 < speed && state.offBeforeChange?.toBoolean()) {
+        if (0 < fanNow && 0 < speed && state.offBeforeChange?.toBoolean()) {
+        	log.debug "Turning off before changing speed"
         	cmds = zigbee.writeAttribute(FAN_CLUSTER, FAN_ATTR_ID, DataType.ENUM8, String.format("%02d", 0))
         }
         cmds += zigbee.writeAttribute(FAN_CLUSTER, FAN_ATTR_ID, DataType.ENUM8, String.format("%02d", speed))
