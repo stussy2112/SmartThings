@@ -205,12 +205,11 @@ def parse(String description) {
     List events = []
     
     Map descMap = zigbee.parseDescriptionAsMap(description)
-    //log.debug "Parse descMap: ${descMap}"
+    log.debug "isBindingTableMessage: ${isBindingTableMessage(description)}"
     int cluster = descMap?.clusterInt ?: zigbee.ONOFF_CLUSTER
     Map event = zigbee.getEvent(description)
     if (event) {
     	log.info "Defined event detected from controller: ${description}"
-        // 
 		// NOTE: For certain descriptions, the values for the events need to be changed to report correctly
         // To handle this, send the correct events for the switch and level clusters to the child light device
         /*
@@ -327,19 +326,27 @@ def refresh(List<Integer> endpoints = [1]) {
     
     List deviceClusters = clusterInfo.findAll { it.value.shouldRefresh }.keySet() as int[]
     List readClusters = []
+    List cmds = []
+    // If refreshing the main endpoint, refresh all clusters and the children
+    /*if (endpoints.contains(initialEndpoint)) {
+    	endpoints = device.getChildDevices().collect { Integer.parseInt(it.getDataValue('endpointId')) }
+        cmds = deviceClusters.flatten().unique().collect { zigbee.readAttribute(it, 0x0000, [destEndpoint: initialEndpoint]) }.flatten()
+    }*/
+    
     if (1 == endpoints.size() && endpoints.contains(initialEndpoint)) {    	
     	// If only refreshing the main endpoint, refresh all clusters and the children
         endpoints += device.getChildDevices().collect { Integer.parseInt(it.getDataValue('endpointId')) }
         readClusters = deviceClusters
     }
     
+    // Collect child info
     def validChildInfo = endpoints.collect { [specs: (findChildDeviceSpecs(it)), endpoint: it ] }
         .findAll { it.specs && !it.specs.syncInfo?.keySet()?.disjoint(deviceClusters) }
         .collect { [clusters: it.specs.syncInfo?.keySet(), endpoint: it.endpoint] }
 
 	// Create the commands for the initial/main endpoint
     readClusters += validChildInfo.collect { it.clusters }.flatten().unique()
-    List cmds = readClusters.flatten().unique().collect { zigbee.readAttribute(it, 0x0000, [destEndpoint: initialEndpoint]) }.flatten()
+    cmds = readClusters.flatten().unique().collect { zigbee.readAttribute(it, 0x0000, [destEndpoint: initialEndpoint]) }.flatten()
     // Create the commands for the child endpoints
     cmds += validChildInfo.collect { info -> info.clusters.collect { zigbee.readAttribute(it, 0x0000, [destEndpoint: info.endpoint]) }.flatten() }.flatten()
     
@@ -441,16 +448,14 @@ public void childOff(String dni) {
         	int endpoint = getChildDeviceEndpoint(childDevice)
             cmds = lightOff(endpoint) + refresh([endpoint])
         } else if (clusters.contains(FAN_CLUSTER)) {
-            boolean resumeRequested = state.preferences["resumeLast"].toBoolean()
-            boolean hasLastFanSpeed = 0 < state.lastFanSpeed
-            boolean shouldResume = resumeRequested && hasLastFanSpeed //&& fanSpeeds.keySet().max() == Integer.parseInt(childDevice.getDataValue('fanSpeed'))
-            log.trace "shouldResume: ${resumeRequested} - ${hasLastFanSpeed} - ${shouldResume}"
+            boolean shouldResume = state.preferences["resumeLast"].toBoolean() && 0 < state.lastFanSpeed //&& fanSpeeds.keySet().max() == Integer.parseInt(childDevice.getDataValue('fanSpeed'))
+            //log.trace "shouldResume: ${resumeRequested} - ${hasLastFanSpeed} - ${shouldResume}"
             cmds = shouldResume ? fanOn() : fanOff()
         }
     }
     
     log.trace "'childOff()': Sending ${cmds} for child ${childDevice}"
-    sendHubCommand(cmds, DEFAULT_DELAY)
+    sendHubCommand(cmds)
 }
 
 public void childOn(String dni) {
@@ -472,7 +477,7 @@ public void childOn(String dni) {
     }
         
     log.trace "'childOn()': Sending ${cmds} for child ${childDevice}"
-    sendHubCommand(cmds, DEFAULT_DELAY)
+    sendHubCommand(cmds)
 }
 
 public void childRefresh(String dni) {
@@ -483,15 +488,14 @@ public void childRefresh(String dni) {
     ChildDeviceWrapper childDevice = getChildDevice(dni)
     if (childDevice) {
         cmds = refresh([getChildDeviceEndpoint(childDevice)])
-        childDevice.sendEvent(name: "refresh")
     }
     
     log.trace "'childRefresh()': Sending ${cmds} for child ${childDevice}"
-    sendHubCommand(cmds, DEFAULT_DELAY)
+    sendHubCommand(cmds)
 }
 
 public void childSetLevel(String dni, Number level, Number rate = null) {
-	log.debug "Executing 'childSetLevel(): ${childDevice}, level = ${level}, rate = ${rate}"
+	log.debug "Executing 'childSetLevel(): ${dni}, level = ${level}, rate = ${rate}"
     
     List<HubAction> cmds = []
     
@@ -501,7 +505,7 @@ public void childSetLevel(String dni, Number level, Number rate = null) {
         List<String> clusters = childDevice.getDataValue('clusters').split(',').collect { Integer.parseInt(it) } // NOTE: Single quotes necessary for this to work
         
         if (clusters.contains(zigbee.LEVEL_CONTROL_CLUSTER)) {
-            cmds = setLightLevel(level, rate)
+            cmds = setLightLevel(level, rate) + refresh([getChildDeviceEndpoint(childDevice)])
         } else if (clusters.contains(FAN_CLUSTER)) {
             cmds = setFanLevel(level, rate)
         }
@@ -536,7 +540,7 @@ private void createChildDevices() {
     	log.trace "Create Child: ${value}"
     	int endPointId = key.intValue() + CHILD_ENPOINT_ID_OFFSET
         String networkId = "${device.deviceNetworkId}:0${endPointId}"
-        Map data = (value.data ?: [:]) << [endpointId: "${endPointId}", required: value.required, requested: state.createSpeedSwitches, clusters: (value.syncInfo?.collect { "${it.key}" }?.join(",")), manufacturer: "King of Fans, Inc." ]
+        Map data = (value.data ?: [:]) << [endpointId: "${String.format("%02d", endPointId)}", required: value.required, requested: state.createSpeedSwitches, clusters: (value.syncInfo?.collect { "${it.key}" }?.join(",")), manufacturer: "King of Fans, Inc." ]
         Map properties = [completedSetup: true, label: "${device.displayName} ${value.name}", isComponent: value.isComponent, componentName: value.componentName, componentLabel: value.name, data: data ]
         createChildDevice(value.typeInfo.namespace, value.typeInfo.typeName, networkId, properties)
     }
@@ -624,7 +628,7 @@ private void deleteChildren() {
     }
 }
 
-private List<ChildDeviceWrapper> findChildDevicesByClusterData(Integer cluster) {
+private List<ChildDeviceWrapper> findChildDevicesByClusterData(int cluster) {
 	return getChildDevices().findAll { it.getDataValue('clusters').split(',').collect { Integer.parseInt(it) }.contains(cluster) }
 }
 
@@ -639,8 +643,6 @@ private Map findChildDeviceSpecs(int endpointId = -1) {
 private int findFanLevelBySpeed(Number speed) {
     Number correctedSpeed = convertToSupportedSpeed(Math.max(speed.intValue(), 0))
     def keySet = fanSpeeds.keySet()
-    // Check that the speed is within the range
-    //correctedSpeed = (keySet.min()..keySet.max()).contains(correctedSpeed) ? keySet.contains(correctedSpeed) ? correctedSpeed : keySet[-2] : keySet.min()
     int checkValue = Math.max(Math.min(correctedSpeed, keySet.max()), keySet.min());
     return fanSpeeds.find { it.key.intValue() >= checkValue }.value.threshold
 }
@@ -657,14 +659,6 @@ private int getChildDeviceEndpoint(ChildDeviceWrapper childDevice) {
 	return childDevice?.getDataValue('endpointId') as Integer
 }
 
-private ChildDeviceWrapper getChildDevice(int deviceSpecKey) { 
-	ChildDeviceWrapper child = getChildDevices().find { Integer.parseInt(it.deviceNetworkId[-1]) == deviceSpecKey + 2 }
-    if (!child) {
-        log.error "Child device for ${deviceSpecKey} not found"
-    }
-    return child
-}
-
 private ChildDeviceWrapper getChildDevice(String deviceNetworkId) {
     ChildDeviceWrapper child = getChildDevices().find { it.deviceNetworkId == deviceNetworkId }
     if (!child) {
@@ -673,8 +667,21 @@ private ChildDeviceWrapper getChildDevice(String deviceNetworkId) {
     return child
 }
 
+private int getGroupAddrFromBindingTable(String description) {
+	log.info "Parsing binding table - '$description'"
+	def btr = zigbee.parseBindingTableResponse(description)
+	def groupEntry = btr?.table_entries?.find { it.dstAddrMode == 1 }
+	if (groupEntry != null) {
+		log.info "Found group binding in the binding table: ${groupEntry}"
+		return Integer.parseInt(groupEntry.dstAddr, 16)
+	} else {
+		log.info "The binding table does not contain a group binding"
+		return null
+	}
+}
+
 private List<HubAction> lightOnOff(value, int endpoint = 1) {
-    log.debug "Executing 'lightOnOff()', value = ${value}, endpoint = ${endpoint}"
+    //log.debug "Executing 'lightOnOff()', value = ${value}, endpoint = ${endpoint}"
 	List cmds = []
     
     // Send the command for the endpoint    
@@ -684,13 +691,14 @@ private List<HubAction> lightOnOff(value, int endpoint = 1) {
             log.debug "Endpoint ${endpoint} does not control the ${clusterInfo[zigbee.ONOFF_CLUSTER].name}"
             return cmds
         } else {
+        	//{${zigbee.swapEndianHex(zigbee.convertToHexString(groupAddr,4))}
     		cmds = zigbee.command(zigbee.ONOFF_CLUSTER, value, "", [destEndpoint: endpoint])
         }
     } 
     
-    cmds += zigbee.command(zigbee.ONOFF_CLUSTER, value, "")
+    cmds += zigbee.command(zigbee.ONOFF_CLUSTER, value, "", [destEndpoint: initialEndpoint])
     
-    log.trace "'lightOnOff()': Sending ${cmds} for ${endpoint}"
+    //log.trace "'lightOnOff()': Sending ${cmds} for ${endpoint}"
 	return cmds.collect { new HubAction(it) }
 }
 
@@ -761,18 +769,23 @@ private List parseCatchAll(String description) {
     return events
 }
 
+
+private List readDeviceBindingTable() {
+	return ["zdo mgmt-bind 0x${device.deviceNetworkId} 0", "delay 200"]
+}
+
 private void syncChildDevices(Integer cluster, Map event) {
 	//log.debug "Executing 'syncChildDevices(): cluster = ${cluster}, event = ${event}"
     
     // NOTE: Map [from event name] to [child device event name]
     Map eventNameMap = [ "lightSwitch":"switch", "lightLevel":"level", "fanSpeed":"switch", "fanLevel":"level"]
     findChildDevicesByClusterData(cluster).findAll{ event.name == findChildDeviceSpecs(it)?.syncInfo[cluster] }
-    .each {
-    	// event.name = fanSpeed || lightSwitch || lightLevel        
-    	Map childEvent = FAN_CLUSTER == cluster
-        	? it.createEvent(name:eventNameMap[event.name], value:((event.value ?: 0 as int) == Integer.parseInt(it.getDataValue('fanSpeed')) ? "on" : "off"))
-        	: it.createEvent(name:eventNameMap[event.name], value:event.value)
-        //log.debug "Sending ${childEvent} TO child ${it}"
-        it.sendEvent(childEvent)
-    }
+        .each {
+            // event.name = fanSpeed || lightSwitch || lightLevel        
+            Map childEvent = FAN_CLUSTER == cluster
+                ? it.createEvent(name:eventNameMap[event.name], value:((event.value ?: 0 as int) == Integer.parseInt(it.getDataValue('fanSpeed')) ? "on" : "off"))
+                : it.createEvent(name:eventNameMap[event.name], value:event.value, isStateChange: true)
+            log.debug "Sending ${childEvent} TO child ${it}"
+            it.sendEvent(childEvent)
+        }
 }

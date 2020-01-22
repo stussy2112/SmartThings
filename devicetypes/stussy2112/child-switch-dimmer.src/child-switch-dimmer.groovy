@@ -20,7 +20,6 @@ metadata {
 		capability "Refresh"
 		capability "Health Check"
 		capability "Light"
-		capability "Sensor"
 	}
     preferences {
         input("dimRate", "enum", title: "Dim Rate", options: [[0:"Instant"], [35:"Normal"], [50:"Slow"], [100:"Very Slow"]], defaultValue: 35, default: 35, required: true, displayDuringSetup: true)
@@ -81,11 +80,6 @@ def on() {
 def off() {
     log.debug "Executing 'off', passing switch event to parent"
 	parent.childOff(device.deviceNetworkId)
-}
-
-def ping() {
-	log.debug "Executing 'ping()'"
-	// Intentionally left blank as parent should handle this
 }
 
 def uninstalled() {
