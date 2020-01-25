@@ -188,7 +188,7 @@ def installed() {
 
 // parse message from device into events that SmartThings platform can understand
 def parse(String description) {
-	log.info "Parsing '${description}'"
+	//log.debug "Parsing '${description}'"
     
     List<Map> events = []
     
@@ -196,7 +196,7 @@ def parse(String description) {
     int cluster = descMap?.clusterInt ?: zigbee.ONOFF_CLUSTER
     Map event = zigbee.getEvent(description)
     if (event) {
-    	log.info "Defined event detected from controller: ${description}"
+    	//log.info "Defined event detected from controller: ${description}"
 		// NOTE: For certain descriptions, the values for the events need to be changed to report correctly
         // To handle this, send the correct events for the switch and level clusters to the child light device
         /*
@@ -209,15 +209,13 @@ def parse(String description) {
     }
     else if (description?.startsWith('read attr -') && FAN_CLUSTER == cluster && FAN_ATTR_ID == descMap?.attrInt) {
 		// handle 'fanSpeed' attribute
-        log.info "Fan message detected from controller: ${description}"
-        //Number fanSpeed = Math.max(Integer.parseInt(descMap.value), 0)
+        //log.info "Fan message detected from controller: ${description}"
         events = createFanEvents((Math.max(Integer.parseInt(descMap.value), 0)))
     } else {
     	events = parseCatchAll(description)
     }
     
     events.each { syncChildDevices(cluster, it) }
-    //syncChildDevices(cluster, events)
     
 	if (0 >= events.size()) {
     	log.warn "DID NOT PARSE MESSAGE for description : ${description}"
@@ -310,7 +308,7 @@ def poll() {
 }
 
 def refresh(List<Integer> endpoints = [1]) {
-	log.debug "Executing 'refresh()': endpoints = ${endpoints}"    
+	//log.debug "Executing 'refresh()': endpoints = ${endpoints}"    
     
     List<Integer> deviceClusters = clusterInfo.findAll { it.value.shouldRefresh }.keySet() as int[]
     List<Integer> readClusters = []
@@ -338,31 +336,32 @@ def refresh(List<Integer> endpoints = [1]) {
     // Create the commands for the child endpoints
     //cmds += validChildInfo.collect { info -> info.clusters.collect { zigbee.readAttribute(it, 0x0000, [destEndpoint: info.endpoint]) }.flatten() }.flatten()
     
-    log.trace "'refresh()': Returning ${cmds} for ${endpoints}"
+    //log.trace "'refresh()': Returning ${cmds} for ${endpoints}"
     return cmds.collect { new HubAction(it) }
 }
 
 public List<HubAction> setLightLevel(Number value, rate = null) {
     Integer lightNow = Math.max(device.currentValue("lightLevel")?.intValue() ?: 0, 0)
-	log.debug "Requested lightLevel is ${value}. Current lightLevel is ${lightNow}"
+	//log.debug "Requested lightLevel is ${value}. Current lightLevel is ${lightNow}"
 
-    Integer level = Math.max(Math.min(value.intValue(), 100), 20)
+    Integer level = Math.max(Math.min(value.intValue(), 100), 0)
     
     List cmds = []
     // only update if the new level is different than the current level
-    if (level != fanNow) {    
+    if (level != lightNow) {    
     	//state.lastLightLevel = lightNow     //save light level before changing so it can be resumed when turned back on    
         rate = Math.max(Math.min((rate == null ? 0 : rate.intValue()), 100), 0)    
     	log.info "Adjusting Light Brightness: ${level} : ${rate}"
     	cmds = zigbee.setLevel(level, rate)
     } 
     // NOTE: Add "refresh" to handle not reporting correctly
-    cmds += zigbee.onOffRefresh() + zigbee.levelRefresh()
+    cmds += zigbee.levelRefresh() + zigbee.onOffRefresh()
     
+    //log.trace "'setLightLevel()' returning: ${cmds}"
     return cmds.collect { new HubAction(it) }
 }
 
-public List<HubAction> setFanLevel(Number level) {
+public List<HubAction> setFanLevel(Number level = 0) {
     Number fanNow = Math.max(device.currentValue("fanLevel")?.intValue() ?: 0, 0)
     List<Integer> thresholds = fanSpeeds.values().collect { it.threshold }
     level = Math.max(Math.min(level.intValue(), thresholds.max()), thresholds.min())   
@@ -402,7 +401,7 @@ public List<HubAction> setFanSpeed(Number speed) {
     	cmds = zigbee.readAttribute(FAN_CLUSTER, FAN_ATTR_ID)
     }
     
-    log.trace "'setFanSpeed()' returning: ${cmds}"
+    //log.trace "'setFanSpeed()' returning: ${cmds}"
     return cmds.collect { new HubAction(it) }
 }
 
@@ -424,10 +423,10 @@ public List<HubAction> lowerFanSpeed() {
 }
 
 /**
-  *  Child handling
+  * Child handling
   */
 public void childOff(String dni) {
-	log.debug "Executing 'childOff(): ${dni}"
+	//log.debug "Executing 'childOff(): ${dni}"
     
     List<HubAction> cmds = []
     
@@ -444,12 +443,12 @@ public void childOff(String dni) {
         }
     }
     
-    log.trace "'childOff()': Sending ${cmds} for child ${childDevice}"
+    //log.trace "'childOff()': Sending ${cmds} for child ${childDevice}"
     sendHubCommand(cmds)
 }
 
 public void childOn(String dni) {
-	log.debug "Executing 'childOn(): ${dni}"
+	//log.debug "Executing 'childOn(): ${dni}"
     
     List<HubAction> cmds = []
     
@@ -466,12 +465,12 @@ public void childOn(String dni) {
         }
     }
         
-    log.trace "'childOn()': Sending ${cmds} for child ${childDevice}"
+    //log.trace "'childOn()': Sending ${cmds} for child ${childDevice}"
     sendHubCommand(cmds)
 }
 
 public void childRefresh(String dni) {
-	log.debug "Executing 'childRefresh(): ${dni}"
+	//log.debug "Executing 'childRefresh(): ${dni}"
     
     List<HubAction> cmds = []
     
@@ -480,12 +479,12 @@ public void childRefresh(String dni) {
         cmds = refresh([getChildDeviceEndpoint(childDevice)])
     }
     
-    log.trace "'childRefresh()': Sending ${cmds} for child ${childDevice}"
+    //log.trace "'childRefresh()': Sending ${cmds} for child ${childDevice}"
     sendHubCommand(cmds)
 }
 
 public void childSetLevel(String dni, Number level, Number rate = null) {
-	log.debug "Executing 'childSetLevel(): ${dni}, level = ${level}, rate = ${rate}"
+	//log.debug "Executing 'childSetLevel(): ${dni}, level = ${level}, rate = ${rate}"
     
     List<HubAction> cmds = []
     
@@ -501,8 +500,7 @@ public void childSetLevel(String dni, Number level, Number rate = null) {
         }
     }
     
-    //cmds = cmds?.flatten()
-    log.trace "'childSetLevel()': Sending ${cmds} for child ${childDevice}"
+    //log.trace "'childSetLevel()': Sending ${cmds} for child ${childDevice}"
     sendHubCommand(cmds)
 }
 
@@ -530,7 +528,7 @@ private void createChildDevices() {
     	log.trace "Create Child: ${value}"
     	int endPointId = key.intValue() + CHILD_ENPOINT_ID_OFFSET
         String networkId = "${device.deviceNetworkId}:0${endPointId}"
-        Map data = (value.data ?: [:]) << [endpointId: "${String.format("%02d", endPointId)}", required: value.required, requested: state.createSpeedSwitches, clusters: (value.syncInfo?.collect { "${it.key}" }?.join(",")), manufacturer: "King of Fans, Inc." ]
+        Map data = (value.data ?: [:]) << [endpointId: "${String.format("%02d", endPointId)}", required: value.required, requested: state.createSpeedSwitches, clusters: (value.syncInfo?.collect { "${it.key}" }?.join(",")), manufacturer: "King Of Fans, Inc." ]
         Map properties = [completedSetup: true, label: "${device.displayName} ${value.name}", isComponent: value.isComponent, componentName: value.componentName, componentLabel: value.name, data: data ]
         createChildDevice(value.typeInfo.namespace, value.typeInfo.typeName, networkId, properties)
     }
@@ -629,17 +627,17 @@ private Map findChildDeviceSpecs(int endpointId = -1) {
 }
 
 private int findFanLevelBySpeed(Number speed) {
-    Number correctedSpeed = convertToSupportedSpeed(Math.max(speed.intValue(), 0))
-    def keySet = fanSpeeds.keySet()
-    int checkValue = Math.max(Math.min(correctedSpeed, keySet.max()), keySet.min());
-    return fanSpeeds.find { it.key.intValue() >= checkValue }.value.threshold
+    Number supportedSpeed = convertToSupportedSpeed(speed.intValue())
+    //def keySet = fanSpeeds.keySet()
+    //int checkValue = Math.max(Math.min(supportedSpeed, keySet.max()), keySet.min());
+    return fanSpeeds.find { it.key.intValue() >= supportedSpeed }.value.threshold
 }
 
 private int findFanSpeedByLevel(Number level) {
-    Number correctedValue = Math.max(level.intValue(), 0)
-	List<Integer> thresholds = fanSpeeds.values().collect { it.threshold }
-    int checkValue = Math.max(Math.min(correctedValue, thresholds.max()), thresholds.min())
-    int speed = fanSpeeds.find { it.value.threshold.intValue() >= checkValue }.key
+    Number correctedLevel = Math.max(level.intValue(), 0)
+	//List<Integer> thresholds = fanSpeeds.values().collect { it.threshold }
+    //int checkValue = Math.max(Math.min(correctedLevel, thresholds.max()), thresholds.min())
+    int speed = fanSpeeds.find { it.value.threshold.intValue() >= correctedLevel }?.key ?: 0
     return convertToSupportedSpeed(speed)
 }
 
@@ -679,7 +677,7 @@ private List<HubAction> lightOnOff(value, int endpoint = 1) {
 }
 
 private List parseCatchAll(String description) {
-	log.debug "Executing 'parseCatchAll()': ${description}"
+	//log.debug "Executing 'parseCatchAll()': ${description}"
 	List<Map> events = []
     
     if (description?.startsWith("catchall:")) {
@@ -741,12 +739,12 @@ private List parseCatchAll(String description) {
     }
     
     //events = events.findAll { it.isStateChange.toBoolean() }
-    log.debug "'parseCatchAll' returning ${events}"
+    //log.debug "'parseCatchAll' returning ${events}"
     return events
 }
 
 private void syncChildDevices(int cluster, Map event) {
-	log.debug "Executing 'syncChildDevices(): cluster = ${cluster}, event = ${event}"
+	//log.debug "Executing 'syncChildDevices(): cluster = ${cluster}, event = ${event}"
     
     // NOTE: Map [from event name] to [child device event name]
     Map eventNameMap = [ "lightSwitch":"switch", "lightLevel":"level", "fanSpeed":"switch", "fanLevel":"level"]
@@ -756,7 +754,7 @@ private void syncChildDevices(int cluster, Map event) {
             Map childEvent = FAN_CLUSTER == cluster
                 ? it.createEvent(name:eventNameMap[event.name], value:((event.value ?: 0 as int) == Integer.parseInt(it.getDataValue('fanSpeed')) ? "on" : "off"))
                 : it.createEvent(name:eventNameMap[event.name], value:event.value, isStateChange: true)
-            log.debug "Sending ${childEvent} TO child ${it}"
+            //log.debug "Sending ${childEvent} TO child ${it}"
             it.sendEvent(childEvent)
         }
 }
