@@ -11,17 +11,17 @@
  *  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
- *  , vid:"x.com.st.fanspeed", vid:"generic-dimmer"
+ *  , vid:"x.com.st.fanspeed", vid:"generic-dimmer", mnmn: "SmartThings", vid:"x.com.st.fanspeed"
  */
 metadata {
-	definition (name: "Hampton Bay Fan Controller", namespace: "stussy2112", author: "Sean Williams", mcdSync: true, runLocally: false, executeCommandsLocally: false, ocfDeviceType: "oic.d.fan", mnmn: "SmartThings", vid:"x.com.st.fanspeed", minHubCoreVersion: '000.025.00000') {
-		capability "Actuator"
-		capability "Switch"
+	definition (name: "Hampton Bay Fan Controller", namespace: "stussy2112", author: "Sean Williams", mcdSync: true, runLocally: false, executeCommandsLocally: false, ocfDeviceType: "oic.d.fan", genericHandler: "Zigbee") {
 		capability "Switch Level"
+		capability "Switch"
 		capability "Fan Speed"
-		capability "Configuration"
-		capability "Refresh"
 		capability "Health Check"
+		capability "Actuator"
+		capability "Refresh"
+		capability "Sensor"
         
 		command "fanOff"
 		command "fanOn"
@@ -32,12 +32,17 @@ metadata {
         command "setLightLevel"
 		command "setFanLevel"
 		command "setFanSpeed"
+        command "low"
+        command "medium"
+        command "high"
+        command "maximum"
+        command "breeze"
 
         attribute "lightSwitch", "string"
 		attribute "fanLevel", "number"
         attribute "lightLevel", "number"
         
-	  	fingerprint profileId: "0104", inClusters: "0000, 0003, 0004, 0005, 0006, 0008, 0202", outClusters: "0003, 0019", manufacturer: "King Of Fans, Inc.", model: "HDC52EastwindFan", deviceJoinName: "Hampton Bay Fan Controller"
+	  	fingerprint profileId: "0104", inClusters: "0000, 0003, 0004, 0005, 0006, 0008, 0202", outClusters: "0003, 0019", manufacturer: "King Of Fans, Inc.", model: "HDC52EastwindFan", deviceJoinName: "Hampton Bay Fan Control"
 	}
 
   	preferences {
@@ -47,13 +52,15 @@ metadata {
         input (name: "resumeLast", type:"bool", title: "Resume Last Setting when speed switch is turned off", defaultValue: false, default: false, required: true, displayDuringSetup: true)
 	}
 
-
 	simulator {
-		// TODO: define status and reply messages here
+		status "00%": "command: 2003, payload: 00"
+		status "33%": "command: 2003, payload: 21"
+		status "66%": "command: 2003, payload: 42"
+		status "99%": "command: 2003, payload: 63"
 	}
 
 	tiles(scale: 2) {
-		multiAttributeTile(name: "fanSpeed", type: "lighting", width: 6, height: 4, canChangeIcon: false) {
+		multiAttributeTile(name: "fanSpeed", type: "generic", width: 6, height: 4, canChangeIcon: false) {
 			tileAttribute("device.fanSpeed", key: "PRIMARY_CONTROL") {
 				attributeState "0", label: "off", action: "fanOn", icon: "st.thermostat.fan-off", backgroundColor: "#ffffff", nextState: "adjusting"
 				attributeState "1", label: "low", action: "fanOff", icon: "st.thermostat.fan-on", backgroundColor: "#00a0dc", nextState: "adjusting"
@@ -69,16 +76,16 @@ metadata {
 				attributeState "VALUE_UP", action: "raiseFanSpeed"
 				attributeState "VALUE_DOWN", action: "lowerFanSpeed"
 			}
-			tileAttribute ("lightLevel", key: "SLIDER_CONTROL", label: "Brightness") {
-				attributeState "lightLevel", action:"setLightLevel"
-			}
 		}
         
-        childDeviceTiles("all", width: 6, height: 1)
+        childDeviceTiles("children", width: 6, height: 1)
 
     	standardTile("refresh", "device.refresh", decoration: "flat", width: 6, height: 1) {
 		  state "default", label:"refresh", action:"refresh", icon:"st.secondary.refresh"
 	  	}
+        
+		main "fanSpeed"
+		details(["fanSpeed", "children", "refresh"])
 	}
 }
 
@@ -98,7 +105,7 @@ private static final getHOME_AUTOMATION_CLUSTER() { 0x0104 }
 private static final getSCENES_CLUSTER() { 0x0005 }
 private static final Map getCommandInfo() { [ 0x00:"Read", 0x01:"Read Response", 0x02:"Write", 0x04:"Write Response", 0x05:"Write, No Response", 0x06:"Configure Reporting", 0x07:"Configure Reporting Response", 0x0B:"Default Response" ] }
 private static final Map getBindResults() { [ 0:"Success", 132:"Not Supported", 130:"Invalid Endpoint", 140:"Table Full" ] }
-private static final Map getFanSpeeds() { [ 0:[name: "Fan Off", threshold: 0], 1:[name: "Low", threshold: 33], 2:[name: "Medium", threshold: 66], 3:[name: "High", threshold: 99], 4:[name: "Maximum", threshold: 100], 6:[name: "Breeze", threshold: 101] ] }
+private static final Map getFanSpeeds() { [ 0:[name: "Fan Off", threshold: 1, display: 0], 1:[name: "Low", threshold: 50, display: 25], 2:[name: "Medium", threshold: 75, display: 50], 3:[name: "High", threshold: 99, display: 75], 4:[name: "Maximum", threshold: 100], 6:[name: "Breeze", threshold: 101] ] }
 private static final Map getSpeedSwitchTypeInfo() { [namespace: "smartthings", typeName: "Child Switch"] }
 
 private final Map getChildDeviceSpecs() {
@@ -152,7 +159,7 @@ def configure() {
     }
     
     cmds += findChildDevicesByClusterData(FAN_CLUSTER).collect {
-    	log.debug "Configuring LEVEL reporting for endpoint ${Integer.parseInt(it.getDataValue('endpointId'))}: ${it}"
+    	log.debug "Configuring FAN reporting for endpoint ${Integer.parseInt(it.getDataValue('endpointId'))}: ${it}"
     	zigbee.configureReporting(FAN_CLUSTER, 0x0000, DataType.ENUM8, minReportTime, maxReportTime, null, [destEndpoint: Integer.parseInt(it.getDataValue('endpointId'))])	
     }
     
@@ -228,7 +235,7 @@ def updated() {
 	log.debug "Updating ${device.displayName} : ${device.deviceNetworkId}"
     
     // If the speed switches were previously created and user is selecting 'false', remove the switches
-    if (!createSpeedSwitches && state.preferences["createSpeedSwitches"]) {
+    if (!createSpeedSwitches && state.preferences && state.preferences["createSpeedSwitches"]) {
     	log.debug "Should delete children"
 		deleteChildren()
     }
@@ -374,7 +381,7 @@ public List<HubAction> setFanLevel(Number level = 0) {
     	sendEvent(name: "fanLevel", value: level) // NOTE: This is necessary b/c fan level is not defined in any capability
     	cmds = setFanSpeed(findFanSpeedByLevel(level))
     } else  {
-    	cmds = zigbee.readAttribute(FAN_CLUSTER, FAN_ATTR_ID).collect { new HubAction(it) }.collect { new HubAction(it) }
+    	cmds = zigbee.readAttribute(FAN_CLUSTER, FAN_ATTR_ID).collect { new HubAction(it) }
     }
     
     return cmds
@@ -413,15 +420,30 @@ public List<HubAction> setLevel(value, rate = null) {
 public List<HubAction> raiseFanSpeed() {
 	//log.debug "Executing 'raiseFanSpeed()'"
 	int currentSpeed = device.currentValue("fanSpeed")?.intValue() ?: 0
-    return setFanLevel(findFanLevelBySpeed(currentSpeed + 1))
+    return setFanSpeed(currentSpeed + 1)
 }
 
 public List<HubAction> lowerFanSpeed() {
 	//log.debug "Executing 'lowerFanSpeed()'"
 	int currentSpeed = device.currentValue("fanSpeed")?.intValue() ?: 0
-    return setFanLevel(findFanLevelBySpeed(currentSpeed - 1))
+    return setFanSpeed(currentSpeed - 1)
 }
 
+public List<HubAction> low() {
+	return setFanLevel((fanSpeeds[1].threshold))
+}
+
+public List<HubAction> medium() {
+	return setFanLevel((fanSpeeds[2].threshold))
+}
+
+public List<HubAction> high() {
+	return setFanLevel((fanSpeeds[3].threshold))
+}
+
+public List<HubAction> max() {
+	return setFanLevel((fanSpeeds[4].threshold))
+}
 /**
   * Child handling
   */
@@ -545,11 +567,10 @@ private List<Map> createFanEvents(Number fanSpeed = null) {
     String fanSwitch = 0 < fanSpeed ? "on" : "off"
     // Adjust the fan level to insure that it falls in the correct range
     int fanLevel = Math.max(device.currentValue("fanLevel")?.intValue() ?: 0, 0)
-    int maxLevel = findFanLevelBySpeed(fanSpeed)
     int minLevel = findFanLevelBySpeed(fanSpeed - 1)
-    if (!((minLevel + 1)..maxLevel).contains(fanLevel)) {
-    	fanLevel = maxLevel
-    	if (1 == fanLevel) { fanLevel = 0 }
+    int maxLevel = findFanLevelBySpeed(fanSpeed) - 1    
+    if (!(minLevel..maxLevel).contains(fanLevel)) {
+    	fanLevel = fanSpeeds[fanSpeed].display ?: fanSpeeds[fanSpeed].threshold
     }
     //fanLevel = Math.max(Math.min(fanLevel, maxLevel), minLevel + 1)
     List<Map> events = [
@@ -627,17 +648,17 @@ private Map findChildDeviceSpecs(int endpointId = -1) {
 }
 
 private int findFanLevelBySpeed(Number speed) {
+	//log.trace "'findFanLevelBySpeed()': speed = ${speed}"
     Number supportedSpeed = convertToSupportedSpeed(speed.intValue())
-    //def keySet = fanSpeeds.keySet()
-    //int checkValue = Math.max(Math.min(supportedSpeed, keySet.max()), keySet.min());
-    return fanSpeeds.find { it.key.intValue() >= supportedSpeed }.value.threshold
+    int fanLevel = fanSpeeds[supportedSpeed].threshold //.find { it.key.intValue() >= supportedSpeed }.value.threshold
+    //log.trace "supportedSpeed: ${supportedSpeed}, fanLevel: ${fanLevel}"
+    return fanLevel
 }
 
 private int findFanSpeedByLevel(Number level) {
     Number correctedLevel = Math.max(level.intValue(), 0)
-	//List<Integer> thresholds = fanSpeeds.values().collect { it.threshold }
-    //int checkValue = Math.max(Math.min(correctedLevel, thresholds.max()), thresholds.min())
     int speed = fanSpeeds.find { it.value.threshold.intValue() >= correctedLevel }?.key ?: 0
+    //log.trace "correctedLevel: ${correctedLevel}, speed: ${speed}"
     return convertToSupportedSpeed(speed)
 }
 
@@ -738,7 +759,6 @@ private List parseCatchAll(String description) {
         }
     }
     
-    //events = events.findAll { it.isStateChange.toBoolean() }
     //log.debug "'parseCatchAll' returning ${events}"
     return events
 }
