@@ -14,13 +14,23 @@
  *  , vid:"x.com.st.fanspeed", vid:"generic-dimmer", mnmn: "SmartThings", vid:"x.com.st.fanspeed"
  */
 metadata {
-	definition (name: "Hampton Bay Fan Controller", namespace: "stussy2112", author: "Sean Williams", ocfDeviceType: "oic.d.fan", genericHandler: "Zigbee") {
-		capability "Switch Level"
+	definition (name: "Hampton Bay Fan Controller", namespace: "stussy2112", author: "Sean Williams", ocfDeviceType: "oic.d.fan", genericHandler: "Zigbee") {  
 		capability "Switch"
+		capability "Switch Level"
 		capability "Fan Speed"
 		capability "Configuration"
 		capability "Health Check"
-
+        
+		/*
+        capability "Actuator"
+        capability "Configuration"
+        capability "Refresh"
+        capability "Switch"       
+        capability "Light"
+        capability "Sensor" 
+        capability "Polling"
+		*/
+        
 		command "fanOff"
 		command "fanOn"
 		command "raiseFanSpeed"
@@ -67,6 +77,13 @@ metadata {
 				attributeState "VALUE_DOWN", action: "lowerFanSpeed"
 			}
 		}
+        standardTile("actionFlat", "device.switch", width: 2, height: 2, decoration: "flat") {
+            state "off", label: '${currentValue}', action: "switch.on", icon: "st.switches.switch.off", backgroundColor: "#ffffff"
+            state "on", label: '${currentValue}', action: "switch.off", icon: "st.switches.switch.on", backgroundColor: "#00a0dc"
+        }
+        controlTile("levelSliderControl", "device.level", "slider", height: 1, width: 2) {
+            state "level", action:"switch level.setLevel"
+        }
 		childDeviceTiles("children", width: 6, height: 1)
 		main "fanSpeed"
 		details(["fanSpeed", "children"])
@@ -89,7 +106,7 @@ private static final getHOME_AUTOMATION_CLUSTER() { 0x0104 }
 private static final getSCENES_CLUSTER() { 0x0005 }
 private static final Map getCommandInfo() { [ 0x00:"Read", 0x01:"Read Response", 0x02:"Write", 0x04:"Write Response", 0x05:"Write, No Response", 0x06:"Configure Reporting", 0x07:"Configure Reporting Response", 0x0B:"Default Response" ] }
 private static final Map getBindResults() { [ 0:"Success", 132:"Not Supported", 130:"Invalid Endpoint", 140:"Table Full" ] }
-private static final Map getFanSpeeds() { [ 0:[name: "Fan Off", min: 0, max: 0], 1:[name: "Low", display: 25, min: 1, max: 49], 2:[name: "Medium", min: 50, max: 74], 3:[name: "High", min: 75, max: 99], 4:[name: "Maximum", min: 100, max: 100], 6:[name: "Breeze", min: 101, max: 100] ] }
+private static final Map getFanSpeeds() { [ 0:[name: "Fan Off", min: 0, max: 0], 1:[name: "Low", display: 25, min: 1, max: 49], 2:[name: "Medium", min: 50, max: 74], 3:[name: "High", min: 75, max: 99], 4:[name: "Maximum", min: 100, max: 100], 6:[name: "Breeze", min: 101, max: 101] ] }
 private static final Map getSpeedSwitchTypeInfo() { [namespace: "smartthings", typeName: "Child Switch"] }
 
 private final Map getChildDeviceSpecs() {
@@ -101,7 +118,7 @@ private final Map getChildDeviceSpecs() {
 		4: [ name: (fanSpeeds[4].name), typeInfo: (speedSwitchTypeInfo), isComponent: true, createChild: (state.supportedSpeeds.contains(4) && state.createSpeedSwitches), componentName: "fanMode4", syncInfo: [ (FAN_CLUSTER):"fanSpeed"], data: [ fanSpeed: 4 ] ],
 		5: [ name: "Off", createChild: false ],
 		6: [ name: (fanSpeeds[6].name), typeInfo: (speedSwitchTypeInfo), isComponent: true, required: (state.supportedSpeeds.contains(6)), componentName: "fanMode6", syncInfo: [ (FAN_CLUSTER):"fanSpeed"], data: [ fanSpeed: 6 ] ],
-		7: [ name: "Light", typeInfo: [namespace: "stussy2112", typeName: "Child Switch Dimmer"], isComponent: false, required: true, componentName: "fanLight", syncInfo: [ (zigbee.ONOFF_CLUSTER):"lightSwitch", (zigbee.LEVEL_CONTROL_CLUSTER):"lightLevel" ] ]
+		7: [ name: "Light", typeInfo: [namespace: "stussy2112", typeName: "Child Switch Dimmer"], isComponent: true, required: false, componentName: "fanLight", syncInfo: [ (zigbee.ONOFF_CLUSTER):"lightSwitch", (zigbee.LEVEL_CONTROL_CLUSTER):"lightLevel" ] ]
 	]
 }
 
@@ -113,7 +130,7 @@ def configure() {
 	log.debug "Configuring Reporting and Bindings."
 
 	// OnOff minReportTime 0 seconds, maxReportTime 5 min. Reporting interval if no activity
-	int minReportTime = 0
+	int minReportTime = 10
 	int maxReportTime = 300
 	List cmds = [
 		//Set long poll interval
@@ -131,13 +148,14 @@ def configure() {
 		//"send 0x${device.deviceNetworkId} 1 1", "delay 100"
 	]
 
+	/*
 	// Add bindings and reporting for the child devices that control the on/off cluster
 	cmds += findChildDevicesByClusterData(zigbee.ONOFF_CLUSTER).collect {
 		log.debug "Configuring ON/OFF reporting for endpoint ${Integer.parseInt(it.getDataValue('endpointId'))}: ${it}"
 		zigbee.configureReporting(zigbee.ONOFF_CLUSTER, 0x0000, DataType.BOOLEAN, minReportTime, maxReportTime, null, [destEndpoint: Integer.parseInt(it.getDataValue('endpointId'))])	
 	}
 
-	cmds += findChildDevicesByClusterData(zigbee.LEVEL_CONTROL_CLUSTER).collect {
+    cmds += findChildDevicesByClusterData(zigbee.LEVEL_CONTROL_CLUSTER).collect {
 		log.debug "Configuring LEVEL reporting for endpoint ${Integer.parseInt(it.getDataValue('endpointId'))}: ${it}"
 		zigbee.configureReporting(zigbee.LEVEL_CONTROL_CLUSTER, 0x0000, DataType.UINT8, minReportTime, maxReportTime, 0x01, [destEndpoint: Integer.parseInt(it.getDataValue('endpointId'))])	
 	}
@@ -146,7 +164,8 @@ def configure() {
 		log.debug "Configuring FAN reporting for endpoint ${Integer.parseInt(it.getDataValue('endpointId'))}: ${it}"
 		zigbee.configureReporting(FAN_CLUSTER, 0x0000, DataType.ENUM8, minReportTime, maxReportTime, null, [destEndpoint: Integer.parseInt(it.getDataValue('endpointId'))])	
 	}
-
+	*/
+    
 	//Get current values from the device
 	cmds += refresh()
 	
@@ -179,7 +198,7 @@ def installed() {
 
 // parse message from device into events that SmartThings platform can understand
 def parse(String description) {
-	//log.debug "Parsing '${description}'"
+	log.debug "Parsing '${description}'"
 	
 	List<Map> events = []
 	
@@ -187,25 +206,34 @@ def parse(String description) {
 	int cluster = descMap?.clusterInt ?: zigbee.ONOFF_CLUSTER
 	Map event = zigbee.getEvent(description)
 	if (event) {
-		//log.info "Defined event detected from controller: ${description}"
+		log.info "Defined event detected from controller: ${description}"
 		// NOTE: For certain descriptions, the values for the events need to be changed to report correctly
 		// To handle this, send the correct events for the switch and level clusters to the child light device
 		/*
 			switch - This should be the on/off state of the FAN (zigbee.OnOffRefresh gives the LIGHT state). Create a "lightSwitch" event instead
-			level - This should be the level of the FAN (zigbee.levelRefresh gives the LIGHT level. Create a "lightLevel" event instead
+			level - This should be the level of the FAN (zigbee.levelRefresh gives the LIGHT level). Create a "lightLevel" event instead
 			on/off - This is the switch event for the LIGHT. Send this directly, as it will not update any attribute on the handler
 		*/
+        //sendEvent(createEvent(name: event.name, value: event.value))
 		Map eventNameMap = [ "switch":"lightSwitch", "level":"lightLevel", "on/off":"lightSwitch"]
+        log.debug "creating event for origName:${event.name}, name:${eventNameMap[event.name]}, value:${event.value}"
 		events << createEvent(name: eventNameMap[event.name], value: event.value)
+        //events << createEvent(name: event.name, value: event.value)
+        /*events << zigbee.onOffRefresh() + zigbee.levelRefresh() + zigbee.readAttribute(0x0202, 0x0000)
+        events.each { 
+        	log.trace "Sending event ${it}"
+        	sendEvent(it) 
+        }
+        return null*/
 	}
 	else if (description?.startsWith('read attr -') && FAN_CLUSTER == cluster && FAN_ATTR_ID == descMap?.attrInt) {
 		// handle 'fanSpeed' attribute
-		//log.info "Fan message detected from controller: ${description}"
+		log.info "Fan message detected from controller: ${description}"
 		events = createFanEvents((Math.max(Integer.parseInt(descMap.value), 0)))
 	} else {
 		events = parseCatchAll(description)
-	}
-	
+	}	
+    
 	events.each { syncChildDevices(cluster, it) }
 	
 	if (0 >= events.size()) {
@@ -258,12 +286,12 @@ def updated() {
 
 // handle commands
 public List<HubAction> fanOff() {
-	//log.debug "Executing 'fanOff'";
+	log.debug "Executing 'fanOff'";
 	return setFanSpeed(0)
 }
 
 public List<HubAction> fanOn() {
-	//log.debug "Executing 'fanOn'";
+	log.debug "Executing 'fanOn'";
 	//return setFanLevel((state.lastFanLevel == null ? fanSpeeds[1].threshold : state.lastFanLevel))
 	return setFanSpeed((state.lastFanSpeed == null ? 1 : state.lastFanSpeed))
 }
@@ -277,13 +305,15 @@ public List<HubAction> lightOn(int endpoint = 1) {
 }
 
 public List<HubAction> on(int endpoint = 1) {
-	//log.debug "Executing 'on': endpoint = ${endpoint}"
+	log.debug "Executing 'on': endpoint = ${endpoint}"
 	return fanOn()
+    //return lightOn()
 }
 
 public List<HubAction> off(int endpoint = 1) {
-	//log.debug "Executing 'off': endpoint = ${endpoint}"
+	log.debug "Executing 'off': endpoint = ${endpoint}"
 	return fanOff()
+    //return lightOff()
 }
 
 /**
@@ -298,6 +328,12 @@ def poll() {
 	log.debug "Executing 'poll()'"
 	refresh()
 }
+
+/*
+def refresh() {	
+	zigbee.onOffRefresh() + zigbee.levelRefresh() + zigbee.readAttribute(0x0202, 0x0000)
+}
+*/
 
 def refresh(List<Integer> endpoints = [1]) {
 	//log.debug "Executing 'refresh()': endpoints = ${endpoints}"
@@ -328,13 +364,13 @@ def refresh(List<Integer> endpoints = [1]) {
 	// Create the commands for the child endpoints
 	//cmds += validChildInfo.collect { info -> info.clusters.collect { zigbee.readAttribute(it, 0x0000, [destEndpoint: info.endpoint]) }.flatten() }.flatten()
 	
-	//log.trace "'refresh()': Returning ${cmds} for ${endpoints}"
+	log.trace "'refresh()': Returning ${cmds} for ${endpoints}"
 	return cmds.collect { new HubAction(it) }
 }
 
 public List<HubAction> setLightLevel(Number value, rate = null) {
 	Integer lightNow = Math.max(device.currentValue("lightLevel")?.intValue() ?: 0, 0)
-	//log.debug "Requested lightLevel is ${value}. Current lightLevel is ${lightNow}"
+	log.debug "Requested lightLevel is ${value}. Current lightLevel is ${lightNow}"
 
 	Integer level = Math.max(Math.min(value.intValue(), 100), 0)
 	
@@ -349,7 +385,7 @@ public List<HubAction> setLightLevel(Number value, rate = null) {
 	// NOTE: Add "refresh" to handle not reporting correctly
 	cmds += zigbee.levelRefresh() + zigbee.onOffRefresh()
 	
-	//log.trace "'setLightLevel()' returning: ${cmds}"
+	log.trace "'setLightLevel()' returning: ${cmds}"
 	return cmds.collect { new HubAction(it) }
 }
 
@@ -400,6 +436,7 @@ public List<HubAction> setFanSpeed(Number speed) {
 public List<HubAction> setLevel(value, rate = null) {
 	//log.debug "Executing 'setLevel()': ${value}, ${rate}"
 	return setFanLevel(value)
+    //return setLightLevel(value, rate)
 }
 
 public List<HubAction> raiseFanSpeed() {
@@ -575,7 +612,9 @@ private void configureHealthCheck() {
 
 	// Device-Watch allows 2 check-in misses from device + ping (plus 1 min lag time)
 	// enrolls with default periodic reporting until newer 5 min interval is confirmed
-	healthEvent = [name: "checkInterval", value: 2 * 10 * 60 + 1 * 60, displayed: false, data: [protocol: "zigbee", hubHardwareId: device.hub.hardwareID]]
+    int checkInterval = 300
+    // int checkInterval = 2 * 10 * 60 + 1 * 60
+	healthEvent = [name: "checkInterval", value: checkInterval, displayed: false, data: [protocol: "zigbee", hubHardwareId: device.hub.hardwareID]]
 	sendEvent(healthEvent)
 	getChildDevices().each {
 		it.sendEvent(healthEvent)
@@ -667,10 +706,7 @@ private List<HubAction> lightOnOff(value, int endpoint = 1) {
 		if (childDeviceSpecs && !childDeviceSpecs.syncInfo.keySet().contains(zigbee.ONOFF_CLUSTER)) {
 			log.debug "Endpoint ${endpoint} does not control the ${clusterInfo[zigbee.ONOFF_CLUSTER].name}"
 			return cmds.collect { new HubAction(it) }
-		}/* else {
-			//{${zigbee.swapEndianHex(zigbee.convertToHexString(groupAddr,4))}
-			cmds = zigbee.command(zigbee.ONOFF_CLUSTER, value, "", [destEndpoint: endpoint])
-		}*/
+		}
 	}
 
 	// NOTE: Add "refresh" to handle not reporting correctly
@@ -713,13 +749,15 @@ private List parseCatchAll(String description) {
 					case (FAN_CLUSTER):
 						//Fan change
 						//catchall: 0104 0202 01 01 0000 00 77E9 00 00 0000 04 01 00
+                        // catchall: 0104 0202 01 01 0000 00 17F9 00 00 0000 04 01 00
 						//SmartShield(text: null, manufacturerId: 0x0000, direction: 0x01, data: [0x00], number: null, isManufacturerSpecific: false, messageType: 0x00, senderShortId: 0x77e9, isClusterSpecific: false, sourceEndpoint: 0x01, profileId: 0x0104, command: 0x04, clusterId: 0x0202, destinationEndpoint: 0x01, options: 0x0000)
 						//[raw:0104 0202 01 01 0000 00 77E9 00 00 0000 04 01 00, profileId:0104, clusterId:0202, sourceEndpoint:01, destinationEndpoint:01, options:0000, messageType:00, dni:77E9, isClusterSpecific:false, isManufacturerSpecific:false, manufacturerId:0000, command:04, direction:01, data:[00], clusterInt:514, commandInt:4]
-						//List<Map> fanEvents = []
 						// If the event was successfull AND it was NOT a write command response
 						if (0x00 == parsed.data[-1] && 0x04 != parsed.command) {
 							events = createFanEvents()
-						}
+						} else {
+                        	log.debug parsed.data
+                        }
 						//events << fanEvents
 						break
 					case (GROUPS_CLUSTER):
@@ -742,12 +780,12 @@ private List parseCatchAll(String description) {
 		}
 	}
 
-	//log.debug "'parseCatchAll' returning ${events}"
+	log.debug "'parseCatchAll' returning ${events}"
 	return events
 }
 
 private void syncChildDevices(int cluster, Map event) {
-	//log.debug "Executing 'syncChildDevices(): cluster = ${cluster}, event = ${event}"
+	log.debug "Executing 'syncChildDevices(): cluster = ${cluster}, event = ${event}"
 
 	// NOTE: Map [from event name] to [child device event name]
 	Map eventNameMap = [ "lightSwitch":"switch", "lightLevel":"level", "fanSpeed":"switch", "fanLevel":"level"]
@@ -757,7 +795,8 @@ private void syncChildDevices(int cluster, Map event) {
 			Map childEvent = FAN_CLUSTER == cluster
 				? it.createEvent(name:eventNameMap[event.name], value:((event.value ?: 0 as int) == Integer.parseInt(it.getDataValue('fanSpeed')) ? "on" : "off"))
 				: it.createEvent(name:eventNameMap[event.name], value:event.value, isStateChange: true)
-			//log.debug "Sending ${childEvent} TO child ${it}"
+			log.debug "Sending ${childEvent} TO child ${it}"
 			it.sendEvent(childEvent)
 		}
+	log.trace "End 'syncChildDevices(): cluster = ${cluster}, event = ${event}"
 }
