@@ -1,0 +1,18 @@
+zigbeeGeneric:
+  - id: "multispeed-fan-generic"
+    deviceProfileName: hampton-bay-fan-controller
+    deviceLabel: "Hampton Bay Fan Controller"
+    zigbeeProfiles:
+      - 0x0104
+    clusters:
+      server:
+        - 0x0000
+        - 0x0003
+        - 0x0004
+        - 0x0005
+        - 0x0006
+        - 0x0008
+        - 0x0202
+      client:
+        - 0x0003
+        - 0x0019

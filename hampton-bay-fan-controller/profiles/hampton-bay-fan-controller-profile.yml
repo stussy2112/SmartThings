@@ -1,0 +1,49 @@
+name: hampton-bay-fan-controller
+components:
+- id: main
+  capabilities:
+  - id: fanSpeed
+    version: 1
+  - id: switch
+    version: 1
+  - id: switchLevel
+    version: 1
+  - id: refresh
+    version: 1
+  - id: firmwareUpdate
+    version: 1
+  categories:
+  - name: Fan
+- id: light
+  capabilities:
+  - id: switch
+    version: 1
+  - id: switchLevel
+    version: 1
+  - id: refresh
+    version: 1
+  categories:
+  - name: Light
+metadata:
+  deviceTypeId: Fan
+preferences:
+  - name: "dimOnOff"
+    title: "Dim transition for On/Off commands?"
+    required: false
+    preferenceType: enumeration
+    definition:
+      options:
+        0: "No"
+        1: "Yes"
+      default: 0
+  - name: "dimRate"
+    title: "Dim rate"
+    required: false
+    preferenceType: enumeration
+    definition:
+      options:
+        0: "Instant"
+        20: "Normal"
+        35: "Slow"
+        50: "Very Slow"
+      default: 20

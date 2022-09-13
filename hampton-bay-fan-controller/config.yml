@@ -1,0 +1,4 @@
+name: 'Hampton Bay Fan Controller'
+packageKey: 'zigbee-hampton-bay-fan'
+permissions:
+  zigbee: {}
